@@ -1,0 +1,377 @@
+---
+interface Props {
+  defaultCsv: string;
+}
+
+const { defaultCsv } = Astro.props;
+---
+
+<div id="csv-mapper" class="grid gap-5 lg:grid-cols-2">
+  <!-- Left: upload & configuration -->
+  <section class="flex flex-col gap-4 rounded-xl border border-zinc-800 bg-zinc-900/40 p-5">
+    <div>
+      <label for="csv-input" class="mb-2 block text-sm font-semibold text-zinc-200">Raw CSV input</label>
+      <textarea
+        id="csv-input"
+        data-el="csv"
+        spellcheck="false"
+        class="h-56 w-full resize-y rounded-lg border border-zinc-700 bg-zinc-950 px-4 py-3 font-mono text-sm leading-6 text-zinc-200 caret-indigo-300 transition outline-none focus:border-indigo-400/60"
+      >{defaultCsv}</textarea>
+      <div
+        data-el="dropzone"
+        class="mt-2 flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-zinc-700 px-4 py-3 text-sm text-zinc-500 transition hover:border-zinc-500 hover:text-zinc-300"
+      >
+        <span aria-hidden="true">⇪</span>
+        drag &amp; drop a <span class="font-mono text-zinc-400">.csv</span> file here, or
+        <span class="font-semibold text-indigo-300">browse</span>
+        <input data-el="file" type="file" accept=".csv,.txt,text/csv,text/plain" class="hidden" />
+      </div>
+      <p data-el="error" hidden class="mt-2 rounded-md bg-red-500/10 px-3 py-2 font-mono text-xs text-red-400"></p>
+    </div>
+
+    <div data-el="schema-card" class="rounded-lg border border-zinc-800 bg-zinc-950/60">
+      <h2 class="flex items-center justify-between border-b border-zinc-800 px-4 py-3 text-sm font-semibold text-zinc-200">
+        Schema mapping
+        <span class="font-mono text-xs font-normal text-zinc-500">column → JSON type</span>
+      </h2>
+      <ul data-el="schema-list" class="divide-y divide-zinc-800/60 px-4 py-1"></ul>
+    </div>
+
+    <p class="text-xs text-zinc-500">
+      Parsed with a built-in quote-aware CSV reader — commas and line breaks inside quoted fields are handled
+      correctly, and your data never leaves this tab.
+    </p>
+  </section>
+
+  <!-- Right: output panel -->
+  <section class="flex flex-col gap-4">
+    <!-- Tokenomics compression engine -->
+    <div class="rounded-xl border border-zinc-800 bg-zinc-900/40 p-5">
+      <h2 class="mb-3 text-sm font-semibold text-zinc-200">
+        Tokenomics compression engine
+        <span class="ml-1 font-normal text-zinc-500">— trim the payload before it hits a prompt window</span>
+      </h2>
+      <div class="flex flex-wrap items-center gap-x-6 gap-y-3">
+        <label class="flex cursor-pointer items-center gap-2.5 text-sm text-zinc-300">
+          <input data-el="minify" type="checkbox" class="peer sr-only" />
+          <span class="relative h-5 w-9 rounded-full bg-zinc-700 transition peer-checked:bg-indigo-500 after:absolute after:top-0.5 after:left-0.5 after:size-4 after:rounded-full after:bg-zinc-300 after:transition peer-checked:after:translate-x-4"></span>
+          Minify JSON string
+        </label>
+        <label class="flex cursor-pointer items-center gap-2.5 text-sm text-zinc-300">
+          <input data-el="truncate" type="checkbox" class="peer sr-only" />
+          <span class="relative h-5 w-9 rounded-full bg-zinc-700 transition peer-checked:bg-indigo-500 after:absolute after:top-0.5 after:left-0.5 after:size-4 after:rounded-full after:bg-zinc-300 after:transition peer-checked:after:translate-x-4"></span>
+          Truncate values to
+          <input
+            data-el="cap"
+            type="number"
+            min="5"
+            max="5000"
+            value="80"
+            class="w-16 rounded-md border border-zinc-700 bg-zinc-950 px-2 py-0.5 text-center font-mono text-xs text-zinc-200 outline-none focus:border-indigo-400/60"
+          />
+          chars
+        </label>
+      </div>
+
+      <div class="mt-4 grid grid-cols-3 gap-3 border-t border-zinc-800 pt-4">
+        <div>
+          <p class="font-mono text-lg font-bold text-zinc-100" data-el="stat-rows">0</p>
+          <p class="text-xs text-zinc-500">rows parsed</p>
+        </div>
+        <div>
+          <p class="font-mono text-lg font-bold text-zinc-100" data-el="stat-in">0 B</p>
+          <p class="text-xs text-zinc-500">original CSV size</p>
+        </div>
+        <div>
+          <p class="font-mono text-lg font-bold text-zinc-100" data-el="stat-out">0 B</p>
+          <p class="text-xs text-zinc-500">
+            payload size
+            <span data-el="stat-delta" class="ml-1 rounded-full bg-zinc-800 px-1.5 py-0.5 font-mono text-[10px] text-zinc-400"></span>
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- JSON preview -->
+    <div class="flex grow flex-col rounded-xl border border-zinc-800 bg-zinc-900/40 p-5">
+      <div class="mb-2 flex items-center justify-between">
+        <h2 class="text-sm font-semibold text-zinc-200">JSON preview</h2>
+        <button
+          type="button"
+          data-el="copy"
+          class="rounded-md border border-zinc-700 px-2.5 py-1 font-mono text-xs text-zinc-400 transition hover:border-zinc-500 hover:text-zinc-100"
+        >
+          copy JSON
+        </button>
+      </div>
+      <pre
+        data-el="json-out"
+        class="max-h-[32rem] min-h-48 grow overflow-auto rounded-lg bg-zinc-950 px-4 py-3 font-mono text-xs leading-5 whitespace-pre-wrap break-words text-zinc-400">—</pre>
+      <p data-el="out-note" hidden class="mt-2 font-mono text-xs text-zinc-500"></p>
+    </div>
+  </section>
+</div>
+
+<script>
+  import { jsonHtml, formatBytes, byteLength } from '../scripts/format';
+
+  const root = document.getElementById('csv-mapper')!;
+  const el = <T extends HTMLElement>(name: string) => root.querySelector<T>(`[data-el="${name}"]`)!;
+
+  const csvArea = el<HTMLTextAreaElement>('csv');
+  const fileInput = el<HTMLInputElement>('file');
+  const dropZone = el<HTMLDivElement>('dropzone');
+  const errorEl = el<HTMLParagraphElement>('error');
+  const schemaCard = el<HTMLDivElement>('schema-card');
+  const schemaList = el<HTMLUListElement>('schema-list');
+  const minifyToggle = el<HTMLInputElement>('minify');
+  const truncToggle = el<HTMLInputElement>('truncate');
+  const capInput = el<HTMLInputElement>('cap');
+  const statRows = el<HTMLParagraphElement>('stat-rows');
+  const statIn = el<HTMLParagraphElement>('stat-in');
+  const statOut = el<HTMLParagraphElement>('stat-out');
+  const statDelta = el<HTMLSpanElement>('stat-delta');
+  const jsonOut = el<HTMLPreElement>('json-out');
+  const outNote = el<HTMLParagraphElement>('out-note');
+  const copyBtn = el<HTMLButtonElement>('copy');
+
+  type FieldType = 'auto' | 'string' | 'number' | 'boolean';
+  const FIELD_TYPES: FieldType[] = ['auto', 'string', 'number', 'boolean'];
+  const MAX_FILE_BYTES = 2 * 1024 * 1024;
+  const PREVIEW_ROW_LIMIT = 300;
+  const PREVIEW_CHAR_LIMIT = 100_000;
+
+  let table: string[][] = [];
+  let headers: string[] = [];
+  let headerSignature = '';
+  let currentOutput = '';
+  const typeChoice = new Map<string, FieldType>();
+
+  /** Quote-aware CSV parser: handles commas, escaped double quotes ("") and
+      line breaks inside quoted fields, plus CRLF endings. */
+  function parseCsv(text: string): string[][] {
+    const rows: string[][] = [];
+    let row: string[] = [];
+    let field = '';
+    let inQuotes = false;
+    const endField = () => {
+      row.push(field);
+      field = '';
+    };
+    const endRow = () => {
+      endField();
+      rows.push(row);
+      row = [];
+    };
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (inQuotes) {
+        if (c === '"') {
+          if (text[i + 1] === '"') {
+            field += '"';
+            i++;
+          } else {
+            inQuotes = false;
+          }
+        } else {
+          field += c;
+        }
+      } else if (c === '"') {
+        inQuotes = true;
+      } else if (c === ',') {
+        endField();
+      } else if (c === '\n') {
+        endRow();
+      } else if (c !== '\r') {
+        field += c;
+      }
+    }
+    if (field !== '' || row.length > 0) endRow();
+    return rows.filter((r) => r.some((cell) => cell.trim() !== ''));
+  }
+
+  function uniqueKeys(rawHeaders: string[]): string[] {
+    const seen = new Map<string, number>();
+    return rawHeaders.map((h, i) => {
+      const base = h.trim() || `column_${i + 1}`;
+      const n = seen.get(base) ?? 0;
+      seen.set(base, n + 1);
+      return n === 0 ? base : `${base}_${n + 1}`;
+    });
+  }
+
+  const NUMBER_RE = /^-?\d+(\.\d+)?([eE][+-]?\d+)?$/;
+
+  function coerce(raw: string, type: FieldType): unknown {
+    const t = raw.trim();
+    switch (type) {
+      case 'string':
+        return raw;
+      case 'number': {
+        const n = Number(t);
+        return t !== '' && Number.isFinite(n) ? n : null;
+      }
+      case 'boolean':
+        return ['true', '1', 'yes', 'y'].includes(t.toLowerCase());
+      case 'auto':
+        if (t === '') return '';
+        if (NUMBER_RE.test(t)) return Number(t);
+        if (/^(true|false)$/i.test(t)) return t.toLowerCase() === 'true';
+        return raw;
+    }
+  }
+
+  function buildObjects(truncate: boolean, cap: number): Record<string, unknown>[] {
+    return table.slice(1).map((cells) => {
+      const obj: Record<string, unknown> = {};
+      headers.forEach((key, i) => {
+        let value = coerce(cells[i] ?? '', typeChoice.get(key) ?? 'auto');
+        if (truncate && typeof value === 'string' && value.length > cap) {
+          value = value.slice(0, cap) + '…';
+        }
+        obj[key] = value;
+      });
+      return obj;
+    });
+  }
+
+  function rebuildSchemaCard() {
+    const signature = headers.join(' ');
+    if (signature === headerSignature) return;
+    headerSignature = signature;
+
+    for (const key of [...typeChoice.keys()]) {
+      if (!headers.includes(key)) typeChoice.delete(key);
+    }
+
+    schemaList.replaceChildren(
+      ...headers.map((key) => {
+        const li = document.createElement('li');
+        li.className = 'flex items-center justify-between gap-3 py-2';
+        const name = document.createElement('span');
+        name.className = 'truncate font-mono text-sm text-zinc-300';
+        name.textContent = key;
+        const select = document.createElement('select');
+        select.className =
+          'rounded-md border border-zinc-700 bg-zinc-950 px-2 py-1 font-mono text-xs text-indigo-300 outline-none focus:border-indigo-400/60';
+        select.setAttribute('aria-label', `JSON type for column ${key}`);
+        for (const t of FIELD_TYPES) {
+          const opt = document.createElement('option');
+          opt.value = t;
+          opt.textContent = t === 'auto' ? 'auto-detect' : t;
+          select.append(opt);
+        }
+        select.value = typeChoice.get(key) ?? 'auto';
+        select.addEventListener('change', () => {
+          typeChoice.set(key, select.value as FieldType);
+          serialize();
+        });
+        li.append(name, select);
+        return li;
+      })
+    );
+  }
+
+  function serialize() {
+    if (table.length === 0) {
+      schemaCard.hidden = true;
+      jsonOut.textContent = 'Paste CSV on the left to see JSON here.';
+      statRows.textContent = '0';
+      statIn.textContent = statOut.textContent = '0 B';
+      statDelta.textContent = '';
+      outNote.hidden = true;
+      currentOutput = '';
+      return;
+    }
+    schemaCard.hidden = false;
+
+    const cap = Math.min(5000, Math.max(5, Number(capInput.value) || 80));
+    const objects = buildObjects(truncToggle.checked, cap);
+    const baseline = JSON.stringify(buildObjects(false, 0), null, 2);
+    currentOutput = minifyToggle.checked ? JSON.stringify(objects) : JSON.stringify(objects, null, 2);
+
+    statRows.textContent = String(objects.length);
+    statIn.textContent = formatBytes(byteLength(csvArea.value));
+    const outBytes = byteLength(currentOutput);
+    const baseBytes = byteLength(baseline);
+    statOut.textContent = formatBytes(outBytes);
+    const saved = baseBytes > 0 ? Math.round((1 - outBytes / baseBytes) * 100) : 0;
+    statDelta.textContent = saved > 0 ? `−${saved}% vs pretty` : 'baseline';
+    statDelta.className = `ml-1 rounded-full px-1.5 py-0.5 font-mono text-[10px] ${
+      saved > 0 ? 'bg-emerald-400/15 text-emerald-300' : 'bg-zinc-800 text-zinc-400'
+    }`;
+
+    outNote.hidden = true;
+    if (minifyToggle.checked) {
+      // one long line — plain text keeps huge payloads fast to render
+      jsonOut.textContent =
+        currentOutput.length > PREVIEW_CHAR_LIMIT ? currentOutput.slice(0, PREVIEW_CHAR_LIMIT) + ' …' : currentOutput;
+      if (currentOutput.length > PREVIEW_CHAR_LIMIT) {
+        outNote.textContent = 'preview truncated — "copy JSON" still copies the full payload.';
+        outNote.hidden = false;
+      }
+    } else if (objects.length <= PREVIEW_ROW_LIMIT) {
+      jsonOut.innerHTML = jsonHtml(objects);
+    } else {
+      jsonOut.textContent = JSON.stringify(objects.slice(0, PREVIEW_ROW_LIMIT), null, 2);
+      outNote.textContent = `preview shows the first ${PREVIEW_ROW_LIMIT} rows — "copy JSON" still copies all ${objects.length}.`;
+      outNote.hidden = false;
+    }
+
+    if (table.length === 1) {
+      errorEl.textContent = 'Header row detected but no data rows — add at least one row below the header.';
+      errorEl.hidden = false;
+    }
+  }
+
+  function reparse() {
+    errorEl.hidden = true;
+    table = parseCsv(csvArea.value.replace(/^﻿/, ''));
+    headers = uniqueKeys(table[0] ?? []);
+    rebuildSchemaCard();
+    serialize();
+  }
+
+  async function loadFile(file: File | undefined) {
+    if (!file) return;
+    if (file.size > MAX_FILE_BYTES) {
+      errorEl.textContent = `That file is ${formatBytes(file.size)} — keep uploads under ${formatBytes(MAX_FILE_BYTES)} so the tab stays responsive.`;
+      errorEl.hidden = false;
+      return;
+    }
+    csvArea.value = await file.text();
+    reparse();
+  }
+
+  let debounceTimer: ReturnType<typeof setTimeout>;
+  csvArea.addEventListener('input', () => {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(reparse, 150);
+  });
+
+  dropZone.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', () => loadFile(fileInput.files?.[0]));
+  dropZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropZone.classList.add('border-indigo-400/60', 'text-zinc-300');
+  });
+  dropZone.addEventListener('dragleave', () =>
+    dropZone.classList.remove('border-indigo-400/60', 'text-zinc-300')
+  );
+  dropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropZone.classList.remove('border-indigo-400/60', 'text-zinc-300');
+    loadFile(e.dataTransfer?.files?.[0]);
+  });
+
+  minifyToggle.addEventListener('change', serialize);
+  truncToggle.addEventListener('change', serialize);
+  capInput.addEventListener('input', serialize);
+  copyBtn.addEventListener('click', async () => {
+    await navigator.clipboard.writeText(currentOutput);
+    copyBtn.textContent = 'copied!';
+    setTimeout(() => (copyBtn.textContent = 'copy JSON'), 1200);
+  });
+
+  reparse();
+</script>

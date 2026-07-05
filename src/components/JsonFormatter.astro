@@ -1,0 +1,520 @@
+---
+interface Props {
+  defaultJson: string;
+  defaultPath?: string;
+}
+
+const { defaultJson, defaultPath = '' } = Astro.props;
+---
+
+<div id="json-formatter" class="grid gap-5 lg:grid-cols-2">
+  <!-- Left: workspace panel -->
+  <section class="flex flex-col gap-3 rounded-xl border border-zinc-800 bg-zinc-900/40 p-5">
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <label for="json-input" class="text-sm font-semibold text-zinc-200">Raw JSON input</label>
+      <div class="flex gap-2">
+        <button
+          type="button"
+          data-el="autofix"
+          hidden
+          class="rounded-md border border-emerald-400/40 bg-emerald-400/10 px-3 py-1.5 text-xs font-semibold text-emerald-300 transition hover:border-emerald-400/70 hover:bg-emerald-400/20"
+        >
+          ⚡ Auto-Fix
+        </button>
+        <button
+          type="button"
+          data-el="beautify"
+          class="rounded-md border border-zinc-700 px-3 py-1.5 text-xs font-semibold text-zinc-300 transition hover:border-indigo-400/50 hover:text-indigo-300"
+        >
+          ✦ Beautify
+        </button>
+        <button
+          type="button"
+          data-el="minify"
+          class="rounded-md border border-zinc-700 px-3 py-1.5 text-xs font-semibold text-zinc-300 transition hover:border-indigo-400/50 hover:text-indigo-300"
+        >
+          ▭ Minify
+        </button>
+        <button
+          type="button"
+          data-el="clear"
+          class="rounded-md border border-zinc-700 px-3 py-1.5 text-xs font-semibold text-zinc-300 transition hover:border-red-400/50 hover:text-red-300"
+        >
+          ✕ Clear
+        </button>
+      </div>
+    </div>
+    <textarea
+      id="json-input"
+      data-el="input"
+      spellcheck="false"
+      class="h-96 w-full grow resize-y rounded-lg border border-zinc-700 bg-zinc-950 px-4 py-3 font-mono text-sm leading-6 text-zinc-200 caret-indigo-300 transition outline-none focus:border-indigo-400/60"
+    >{defaultJson}</textarea>
+    <p data-el="diagnostic" hidden class="rounded-md px-3 py-2 font-mono text-xs"></p>
+    <p data-el="suggest" hidden class="rounded-md bg-amber-500/10 px-3 py-2 font-mono text-xs leading-5 text-amber-300"></p>
+    <p data-el="fix-note" hidden class="rounded-md bg-emerald-400/10 px-3 py-2 font-mono text-xs leading-5 text-emerald-300"></p>
+    <p data-el="sizes" hidden class="font-mono text-xs text-zinc-500"></p>
+  </section>
+
+  <!-- Right: output & path finder panel -->
+  <section class="flex flex-col gap-3 rounded-xl border border-zinc-800 bg-zinc-900/40 p-5">
+    <div>
+      <label for="json-path" class="mb-2 block text-sm font-semibold text-zinc-200">
+        JSON Path Finder
+        <span class="ml-1 font-normal text-zinc-500">— e.g. <code class="font-mono text-xs text-indigo-300">servers[0].metrics.cpu</code></span>
+      </label>
+      <input
+        id="json-path"
+        data-el="path"
+        type="text"
+        value={defaultPath}
+        spellcheck="false"
+        autocomplete="off"
+        placeholder="leave empty to show the full document"
+        class="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-4 py-2.5 font-mono text-sm text-indigo-300 transition outline-none placeholder:text-zinc-600 focus:border-indigo-400/60"
+      />
+      <p data-el="path-note" hidden class="mt-2 rounded-md bg-amber-500/10 px-3 py-2 font-mono text-xs text-amber-300"></p>
+    </div>
+
+    <div class="flex grow flex-col">
+      <div class="mb-2 flex items-center justify-between">
+        <h2 class="text-sm font-semibold text-zinc-200">Formatted output</h2>
+        <button
+          type="button"
+          data-el="copy"
+          class="rounded-md border border-zinc-700 px-2.5 py-1 font-mono text-xs text-zinc-400 transition hover:border-zinc-500 hover:text-zinc-100"
+        >
+          copy
+        </button>
+      </div>
+      <pre
+        data-el="output"
+        class="max-h-[36rem] min-h-64 grow overflow-auto rounded-lg bg-zinc-950 px-4 py-3 font-mono text-xs leading-5 whitespace-pre-wrap break-words text-zinc-400">—</pre>
+    </div>
+    <p class="text-xs text-zinc-500">
+      Parsed with your browser&rsquo;s native <code class="font-mono">JSON.parse</code> — nothing you paste here is
+      uploaded, logged, or sent anywhere.
+    </p>
+  </section>
+</div>
+
+<script>
+  import { jsonHtml, formatBytes, byteLength } from '../scripts/format';
+
+  const root = document.getElementById('json-formatter')!;
+  const el = <T extends HTMLElement>(name: string) => root.querySelector<T>(`[data-el="${name}"]`)!;
+
+  const input = el<HTMLTextAreaElement>('input');
+  const diagnostic = el<HTMLParagraphElement>('diagnostic');
+  const sizesEl = el<HTMLParagraphElement>('sizes');
+  const pathInput = el<HTMLInputElement>('path');
+  const pathNote = el<HTMLParagraphElement>('path-note');
+  const output = el<HTMLPreElement>('output');
+  const copyBtn = el<HTMLButtonElement>('copy');
+  const beautifyBtn = el<HTMLButtonElement>('beautify');
+  const minifyBtn = el<HTMLButtonElement>('minify');
+  const clearBtn = el<HTMLButtonElement>('clear');
+  const autofixBtn = el<HTMLButtonElement>('autofix');
+  const suggestEl = el<HTMLParagraphElement>('suggest');
+  const fixNote = el<HTMLParagraphElement>('fix-note');
+
+  let parsed: unknown;
+  let valid = false;
+  let displayed: unknown;
+
+  /** Browsers report parse errors three ways: "line N column N" (Firefox/Safari,
+      some Chrome), "at position N" (older Chrome), or a context snippet like
+      ..."refunds",]," is not valid JSON (newer Chrome). Normalize all three to a
+      line/column phrase, locating the snippet in the source when needed. */
+  function errorLocation(message: string, text: string): string {
+    const fromIndex = (idx: number) => {
+      const before = text.slice(0, idx).split('\n');
+      return `at line ${before.length}, column ${before[before.length - 1].length + 1}`;
+    };
+    const lineCol = message.match(/line (\d+) column (\d+)/i);
+    if (lineCol) return `at line ${lineCol[1]}, column ${lineCol[2]}`;
+    const pos = message.match(/position (\d+)/i);
+    if (pos) return fromIndex(Number(pos[1]));
+    const snippet = message
+      .replace(/ is not valid JSON$/, '')
+      .match(/\.\.\."([\s\S]*)"(?:\.\.\.)?$/)?.[1];
+    if (snippet) {
+      const idx = text.indexOf(snippet);
+      if (idx !== -1) {
+        const token = message.match(/^Unexpected token '(.)'/)?.[1];
+        const offset = token ? snippet.lastIndexOf(token) : snippet.length - 1;
+        return fromIndex(idx + Math.max(0, offset));
+      }
+    }
+    return '';
+  }
+
+  function setDiagnostic(kind: 'error' | 'ok' | 'hidden', message = '') {
+    diagnostic.hidden = kind === 'hidden';
+    diagnostic.textContent = message;
+    diagnostic.className = `rounded-md px-3 py-2 font-mono text-xs ${
+      kind === 'error' ? 'bg-red-500/10 text-red-400' : 'bg-emerald-400/10 text-emerald-300'
+    }`;
+    input.classList.toggle('border-red-500/60', kind === 'error');
+  }
+
+  // --- Auto-fix repair engine ----------------------------------------------
+  // A single string-aware scan that rebuilds the input while correcting the
+  // common breakages. Pure function, in-memory only — nothing stored anywhere.
+
+  interface Change {
+    what: string;
+    line: number;
+  }
+
+  function repairJson(src: string): { fixed: string; changes: Change[] } {
+    const out: string[] = [];
+    const changes: Change[] = [];
+    const stack: string[] = []; // closers we still owe
+    let i = 0;
+    let line = 1;
+    let last: 'start' | 'open' | 'value' | 'comma' | 'colon' = 'start';
+    const note = (what: string) => changes.push({ what, line });
+    // two sibling values with no separator (e.g. `"a": 1 "b": 2`) need a comma
+    const beforeValue = () => {
+      if (last === 'value') {
+        out.push(',');
+        note('inserted missing comma');
+      }
+    };
+
+    while (i < src.length) {
+      const c = src[i];
+      if (c === '\n') {
+        line++;
+        out.push(c);
+        i++;
+        continue;
+      }
+      if (/\s/.test(c)) {
+        out.push(c);
+        i++;
+        continue;
+      }
+
+      if (c === '/' && src[i + 1] === '/') {
+        note('removed // comment');
+        const nl = src.indexOf('\n', i);
+        i = nl === -1 ? src.length : nl;
+        continue;
+      }
+      if (c === '/' && src[i + 1] === '*') {
+        note('removed /* */ comment');
+        const end = src.indexOf('*/', i);
+        const segment = src.slice(i, end === -1 ? src.length : end + 2);
+        line += (segment.match(/\n/g) ?? []).length;
+        i = end === -1 ? src.length : end + 2;
+        continue;
+      }
+
+      if (c === '"' || c === "'" || c === '“' || c === '”' || c === '‘' || c === '’') {
+        beforeValue();
+        const isSingle = c === "'" || c === '‘' || c === '’';
+        if (isSingle) note('converted single-quoted string');
+        else if (c !== '"') note('normalized smart quotes');
+        out.push('"');
+        i++;
+        let closed = false;
+        while (i < src.length) {
+          const s = src[i];
+          if (s === '\\') {
+            out.push(s, src[i + 1] ?? '');
+            i += 2;
+            continue;
+          }
+          if (s === '\n') {
+            note('closed unterminated string');
+            out.push('"');
+            closed = true;
+            break; // leave the \n for the outer loop so line counting stays right
+          }
+          const closesDouble = !isSingle && (s === '"' || s === '“' || s === '”');
+          const closesSingle = isSingle && (s === "'" || s === '‘' || s === '’');
+          if (closesDouble || closesSingle) {
+            out.push('"');
+            i++;
+            closed = true;
+            break;
+          }
+          if (s === '"' && isSingle) {
+            out.push('\\"'); // inner double quote inside a converted string
+            i++;
+            continue;
+          }
+          out.push(s);
+          i++;
+        }
+        if (!closed) {
+          note('closed unterminated string');
+          out.push('"');
+        }
+        last = 'value';
+        continue;
+      }
+
+      if (c === '{' || c === '[') {
+        beforeValue();
+        out.push(c);
+        stack.push(c === '{' ? '}' : ']');
+        last = 'open';
+        i++;
+        continue;
+      }
+
+      if (c === '}' || c === ']') {
+        if (stack.length === 0) {
+          note('removed stray closing bracket');
+          i++;
+          continue;
+        }
+        const expected = stack[stack.length - 1];
+        if (c !== expected) {
+          note(`replaced ${c} with ${expected}`);
+          out.push(expected);
+        } else {
+          out.push(c);
+        }
+        stack.pop();
+        last = 'value';
+        i++;
+        continue;
+      }
+
+      if (c === ',') {
+        let j = i + 1;
+        while (j < src.length && /\s/.test(src[j])) j++;
+        const next = src[j];
+        if (next === undefined || next === '}' || next === ']') {
+          note('removed trailing comma');
+          i++;
+          continue;
+        }
+        if (next === ',' || last === 'comma' || last === 'open' || last === 'start') {
+          note('removed extra comma');
+          i++;
+          continue;
+        }
+        out.push(c);
+        last = 'comma';
+        i++;
+        continue;
+      }
+
+      if (c === ':') {
+        out.push(c);
+        last = 'colon';
+        i++;
+        continue;
+      }
+
+      const word = src.slice(i).match(/^[^\s,:{}[\]"'“”‘’]+/)?.[0];
+      if (word) {
+        beforeValue();
+        if (/^-?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/.test(word) || word === 'true' || word === 'false' || word === 'null') {
+          out.push(word);
+        } else if (['undefined', 'NaN', 'Infinity', '-Infinity'].includes(word)) {
+          note(`replaced ${word} with null`);
+          out.push('null');
+        } else {
+          let j = i + word.length;
+          while (j < src.length && /\s/.test(src[j])) j++;
+          note(src[j] === ':' ? 'quoted unquoted key' : 'quoted bare word');
+          out.push(`"${word}"`);
+        }
+        last = 'value';
+        i += word.length;
+        continue;
+      }
+
+      note(`removed unexpected "${c}"`);
+      i++;
+    }
+
+    while (stack.length > 0) {
+      const closer = stack.pop()!;
+      out.push(closer);
+      note(closer === '}' ? 'added missing closing brace }' : 'added missing closing bracket ]');
+    }
+
+    return { fixed: out.join(''), changes };
+  }
+
+  function describeChanges(changes: Change[]): string {
+    const grouped = new Map<string, number[]>();
+    for (const { what, line } of changes) {
+      const lines = grouped.get(what) ?? [];
+      if (!lines.includes(line)) lines.push(line);
+      grouped.set(what, lines);
+    }
+    return [...grouped.entries()]
+      .map(([what, lines]) => `${what} (line${lines.length > 1 ? 's' : ''} ${lines.join(', ')})`)
+      .join(' · ');
+  }
+
+  interface PathResult {
+    found: boolean;
+    value?: unknown;
+    failedAt?: string;
+  }
+
+  /** Walks `servers[1].metrics.cpu`-style paths; also accepts ["key"] and a $ root. */
+  function resolvePath(value: unknown, path: string): PathResult {
+    let current = value;
+    const walked: string[] = [];
+    const tokens = path.replace(/^\$\.?/, '').matchAll(/\[(\d+)\]|\["([^"]*)"\]|\['([^']*)'\]|([^.[\]]+)/g);
+    for (const t of tokens) {
+      const key = t[1] !== undefined ? Number(t[1]) : (t[2] ?? t[3] ?? t[4]);
+      walked.push(typeof key === 'number' ? `[${key}]` : String(key));
+      if (typeof key === 'number') {
+        if (!Array.isArray(current) || current[key] === undefined) return { found: false, failedAt: walked.join('.').replace(/\.\[/g, '[') };
+        current = current[key];
+      } else {
+        if (current === null || typeof current !== 'object' || !(key in (current as object)))
+          return { found: false, failedAt: walked.join('.').replace(/\.\[/g, '[') };
+        current = (current as Record<string, unknown>)[key];
+      }
+    }
+    return { found: true, value: current };
+  }
+
+  function renderOutput() {
+    if (!valid) {
+      output.textContent = '—';
+      pathNote.hidden = true;
+      displayed = undefined;
+      return;
+    }
+    const path = pathInput.value.trim();
+    if (path === '') {
+      displayed = parsed;
+      pathNote.hidden = true;
+    } else {
+      const result = resolvePath(parsed, path);
+      if (!result.found) {
+        pathNote.textContent = `path not found — walked as far as: ${result.failedAt || '(root)'}`;
+        pathNote.hidden = false;
+        output.textContent = '—';
+        displayed = undefined;
+        return;
+      }
+      displayed = result.value;
+      pathNote.hidden = true;
+    }
+    output.innerHTML = jsonHtml(displayed);
+  }
+
+  function updateSizes() {
+    if (!valid) {
+      sizesEl.hidden = true;
+      return;
+    }
+    const inputBytes = byteLength(input.value);
+    const minBytes = byteLength(JSON.stringify(parsed));
+    const saved = inputBytes > 0 ? Math.round((1 - minBytes / inputBytes) * 100) : 0;
+    sizesEl.textContent =
+      `input ${formatBytes(inputBytes)} · minified ${formatBytes(minBytes)}` +
+      (saved > 0 ? ` (−${saved}% whitespace)` : '');
+    sizesEl.hidden = false;
+  }
+
+  function parse() {
+    const raw = input.value;
+    if (raw.trim() === '') {
+      valid = false;
+      setDiagnostic('hidden');
+      sizesEl.hidden = true;
+      output.textContent = 'Paste JSON on the left to format it.';
+      pathNote.hidden = true;
+      return;
+    }
+    try {
+      parsed = JSON.parse(raw);
+      valid = true;
+      setDiagnostic('ok', '✓ Valid JSON');
+      suggestEl.hidden = true;
+      autofixBtn.hidden = true;
+    } catch (err) {
+      valid = false;
+      fixNote.hidden = true;
+      const message = err instanceof Error ? err.message : String(err);
+      const location = errorLocation(message, raw);
+      const summary = message
+        .split('\n')[0]
+        .replace(/ in JSON at position \d+.*$/i, '')
+        .replace(/ at line \d+ column \d+.*$/i, '')
+        .replace(/,? ?\.\.\."[\s\S]*$/, '')
+        .replace(/"? is not valid JSON$/, '');
+      setDiagnostic('error', `Error: ${summary}${location ? ' ' + location : ''}`);
+
+      // preview what Auto-Fix would do; only offer it if the repair actually parses
+      suggestEl.hidden = true;
+      autofixBtn.hidden = true;
+      if (raw.length <= 200_000) {
+        const { fixed, changes } = repairJson(raw);
+        try {
+          JSON.parse(fixed);
+          if (changes.length > 0) {
+            suggestEl.textContent = `Suggested fixes: ${describeChanges(changes)}`;
+            suggestEl.hidden = false;
+            autofixBtn.hidden = false;
+          }
+        } catch {
+          suggestEl.textContent = 'No automatic fix found — check the quoting and structure near the error location.';
+          suggestEl.hidden = false;
+        }
+      }
+    }
+    updateSizes();
+    renderOutput();
+  }
+
+  let debounceTimer: ReturnType<typeof setTimeout>;
+  input.addEventListener('input', () => {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(parse, 150);
+  });
+  pathInput.addEventListener('input', renderOutput);
+
+  autofixBtn.addEventListener('click', () => {
+    const { fixed, changes } = repairJson(input.value);
+    try {
+      JSON.parse(fixed);
+    } catch {
+      return; // button is only shown when the repair parses, but never apply a broken result
+    }
+    input.value = fixed;
+    parse();
+    fixNote.textContent = `⚡ Auto-fix applied: ${describeChanges(changes)} — review the result before using it.`;
+    fixNote.hidden = false;
+  });
+
+  beautifyBtn.addEventListener('click', () => {
+    if (!valid) return parse(); // re-surface the error banner
+    input.value = JSON.stringify(parsed, null, '\t');
+    parse();
+  });
+  minifyBtn.addEventListener('click', () => {
+    if (!valid) return parse();
+    input.value = JSON.stringify(parsed);
+    parse();
+  });
+  clearBtn.addEventListener('click', () => {
+    input.value = '';
+    fixNote.hidden = true;
+    parse();
+    input.focus();
+  });
+  copyBtn.addEventListener('click', async () => {
+    const text = displayed === undefined ? '' : JSON.stringify(displayed, null, 2);
+    await navigator.clipboard.writeText(text);
+    copyBtn.textContent = 'copied!';
+    setTimeout(() => (copyBtn.textContent = 'copy'), 1200);
+  });
+
+  parse();
+</script>

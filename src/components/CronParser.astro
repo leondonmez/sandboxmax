@@ -1,0 +1,432 @@
+---
+interface Props {
+  defaultCron: string;
+}
+
+const { defaultCron } = Astro.props;
+
+const fieldLabels = ['Minute', 'Hour', 'Day of month', 'Month', 'Day of week'];
+---
+
+<div id="cron-parser" class="grid gap-5 lg:grid-cols-2">
+  <!-- Left: input & humanizer -->
+  <section class="flex flex-col gap-4 rounded-xl border border-zinc-800 bg-zinc-900/40 p-5">
+    <div>
+      <label for="cron-input" class="mb-2 block text-sm font-semibold text-zinc-200">Cron expression</label>
+      <input
+        id="cron-input"
+        data-el="cron"
+        type="text"
+        value={defaultCron}
+        spellcheck="false"
+        autocomplete="off"
+        class="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-4 py-3 text-center font-mono text-lg tracking-widest text-indigo-300 transition outline-none focus:border-indigo-400/60"
+      />
+      <p data-el="error" hidden class="mt-2 rounded-md bg-red-500/10 px-3 py-2 font-mono text-xs text-red-400"></p>
+      <p data-el="alias-note" hidden class="mt-2 font-mono text-xs text-zinc-500"></p>
+    </div>
+
+    <div class="rounded-lg border border-indigo-400/25 bg-indigo-500/10 p-4">
+      <p class="mb-1 font-mono text-xs text-indigo-300/70">instant translation</p>
+      <p data-el="translation" class="text-lg leading-snug font-semibold text-zinc-100">—</p>
+    </div>
+
+    <div class="rounded-lg border border-zinc-800 bg-zinc-950/60">
+      <h2 class="border-b border-zinc-800 px-4 py-3 text-sm font-semibold text-zinc-200">Field breakdown</h2>
+      <ul class="divide-y divide-zinc-800/60 px-4 py-1">
+        {
+          fieldLabels.map((label, i) => (
+            <li class="flex items-center gap-3 py-2">
+              <span class="w-28 shrink-0 text-xs text-zinc-500">{label}</span>
+              <code
+                data-field-chip={i}
+                class="shrink-0 rounded bg-zinc-800 px-2 py-0.5 font-mono text-xs text-indigo-300"
+              >
+                —
+              </code>
+              <span data-field-desc={i} class="truncate text-sm text-zinc-400">
+                —
+              </span>
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+  </section>
+
+  <!-- Right: execution timeline -->
+  <section class="flex flex-col rounded-xl border border-zinc-800 bg-zinc-900/40 p-5">
+    <div class="mb-3 flex items-center justify-between gap-3">
+      <h2 class="text-sm font-semibold text-zinc-200">Next 5 planned execution times</h2>
+      <div class="flex rounded-lg border border-zinc-700 p-0.5 font-mono text-xs">
+        <button
+          type="button"
+          data-el="mode-local"
+          class="rounded-md px-2.5 py-1 transition"
+        >
+          local
+        </button>
+        <button
+          type="button"
+          data-el="mode-utc"
+          class="rounded-md px-2.5 py-1 transition"
+        >
+          UTC
+        </button>
+      </div>
+    </div>
+    <ol data-el="runs" class="grow space-y-2"></ol>
+    <p class="mt-4 border-t border-zinc-800 pt-3 text-xs text-zinc-500">
+      Times are computed from your device&rsquo;s clock, exactly like cron on your own machine — the UTC switch only
+      changes the display. Nothing is sent anywhere.
+    </p>
+  </section>
+</div>
+
+<script>
+  const root = document.getElementById('cron-parser')!;
+  const el = <T extends HTMLElement>(name: string) => root.querySelector<T>(`[data-el="${name}"]`)!;
+
+  const cronInput = el<HTMLInputElement>('cron');
+  const errorEl = el<HTMLParagraphElement>('error');
+  const aliasNote = el<HTMLParagraphElement>('alias-note');
+  const translationEl = el<HTMLParagraphElement>('translation');
+  const runsList = el<HTMLOListElement>('runs');
+  const modeLocal = el<HTMLButtonElement>('mode-local');
+  const modeUtc = el<HTMLButtonElement>('mode-utc');
+  const chips = [...root.querySelectorAll<HTMLElement>('[data-field-chip]')];
+  const descs = [...root.querySelectorAll<HTMLElement>('[data-field-desc]')];
+
+  const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const DOW_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+  interface FieldSpec {
+    label: string;
+    min: number;
+    max: number;
+    fullSize: number;
+    unit: string;
+    names?: Record<string, number>;
+    valueName?: (v: number) => string;
+  }
+
+  const monthAbbr = Object.fromEntries(MONTH_NAMES.map((n, i) => [n.slice(0, 3).toLowerCase(), i + 1]));
+  const dowAbbr = Object.fromEntries(DOW_NAMES.map((n, i) => [n.slice(0, 3).toLowerCase(), i]));
+
+  const SPECS: FieldSpec[] = [
+    { label: 'Minute', min: 0, max: 59, fullSize: 60, unit: 'minute' },
+    { label: 'Hour', min: 0, max: 23, fullSize: 24, unit: 'hour' },
+    { label: 'Day of month', min: 1, max: 31, fullSize: 31, unit: 'day' },
+    { label: 'Month', min: 1, max: 12, fullSize: 12, unit: 'month', names: monthAbbr, valueName: (v) => MONTH_NAMES[v - 1] },
+    { label: 'Day of week', min: 0, max: 7, fullSize: 7, unit: 'day of the week', names: dowAbbr, valueName: (v) => DOW_NAMES[v] },
+  ];
+
+  const ALIASES: Record<string, string> = {
+    '@hourly': '0 * * * *',
+    '@daily': '0 0 * * *',
+    '@midnight': '0 0 * * *',
+    '@weekly': '0 0 * * 0',
+    '@monthly': '0 0 1 * *',
+    '@yearly': '0 0 1 1 *',
+    '@annually': '0 0 1 1 *',
+  };
+
+  interface ParsedField {
+    raw: string;
+    values: Set<number>;
+    coversAll: boolean;
+    desc: string;
+    error?: string;
+  }
+
+  function parseField(raw: string, spec: FieldSpec): ParsedField {
+    const values = new Set<number>();
+    const descParts: string[] = [];
+    const fail = (error: string): ParsedField => ({ raw, values, coversAll: false, desc: '', error });
+
+    // substitute names (JAN, MON, ...) with numbers
+    let text = raw.toLowerCase();
+    if (spec.names) {
+      let badName = '';
+      text = text.replace(/[a-z]+/g, (word) => {
+        const n = spec.names![word];
+        if (n === undefined) badName = word;
+        return String(n ?? word);
+      });
+      if (badName) return fail(`"${badName}" is not a valid ${spec.label.toLowerCase()} name`);
+    } else if (/[a-z]/.test(text)) {
+      return fail(`names are not allowed in the ${spec.label.toLowerCase()} field`);
+    }
+
+    const name = spec.valueName ?? String;
+    for (const part of text.split(',')) {
+      const m = part.match(/^(\*|(\d+)(?:-(\d+))?)(?:\/(\d+))?$/);
+      if (!m || part === '') return fail(`"${part || raw}" is not valid syntax`);
+      const [, base, fromStr, toStr, stepStr] = m;
+      const step = stepStr === undefined ? 1 : Number(stepStr);
+      if (step < 1) return fail('step value must be at least 1');
+
+      let from: number;
+      let to: number;
+      if (base === '*') {
+        from = spec.min;
+        to = spec.max;
+      } else {
+        from = Number(fromStr);
+        to = toStr === undefined ? from : Number(toStr);
+        if (from < spec.min || from > spec.max || to > spec.max) {
+          const bad = from < spec.min || from > spec.max ? from : to;
+          return fail(`"${bad}" is out of range (${spec.min}–${spec.max})`);
+        }
+        if (from > to) return fail(`range ${from}-${to} is reversed`);
+      }
+      for (let v = from; v <= to; v += step) {
+        values.add(spec.label === 'Day of week' && v === 7 ? 0 : v);
+      }
+
+      if (base === '*') descParts.push(step === 1 ? `every ${spec.unit}` : `every ${step} ${spec.unit}s`);
+      else if (stepStr !== undefined) descParts.push(`every ${step} ${spec.unit}s from ${name(from)} to ${name(to)}`);
+      else if (toStr !== undefined) descParts.push(`${name(from)} through ${name(to)}`);
+      else descParts.push(name(from));
+    }
+
+    return { raw, values, coversAll: values.size === spec.fullSize, desc: descParts.join(', ') };
+  }
+
+  // --- Humanizer ------------------------------------------------------------
+
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const fmt12 = (h: number, m: number) => {
+    const ampm = h < 12 ? 'AM' : 'PM';
+    const h12 = h % 12 === 0 ? 12 : h % 12;
+    return `${h12}:${pad(m)} ${ampm}`;
+  };
+  const listWords = (items: string[]) =>
+    items.length <= 1 ? (items[0] ?? '') : items.slice(0, -1).join(', ') + ' and ' + items[items.length - 1];
+  const sorted = (s: Set<number>) => [...s].sort((a, b) => a - b);
+  const isContiguous = (vals: number[]) => vals.every((v, i) => i === 0 || v === vals[i - 1] + 1);
+  const stepOf = (raw: string) => raw.match(/^\*\/(\d+)$/)?.[1];
+
+  function humanize(fields: ParsedField[]): string {
+    const [minute, hour, dom, month, dow] = fields;
+
+    let time: string;
+    const minStep = stepOf(minute.raw);
+    const hourStep = stepOf(hour.raw);
+    const minutes = sorted(minute.values);
+    const hours = sorted(hour.values);
+    if (minute.coversAll && hour.coversAll) time = 'every minute';
+    else if (minStep && hour.coversAll) time = `every ${minStep} minutes`;
+    else if (hour.coversAll) time = `at minute ${listWords(minutes.map(String))} past every hour`;
+    else if (hourStep && minutes.length === 1)
+      time = `every ${hourStep} hours` + (minutes[0] !== 0 ? ` at minute ${minutes[0]}` : '');
+    else if (hours.length * minutes.length <= 6)
+      time = 'at ' + listWords(hours.flatMap((h) => minutes.map((m) => fmt12(h, m))));
+    else time = `at ${minutes.length} minute mark${minutes.length > 1 ? 's' : ''} across ${hours.length} hours`;
+
+    const parts = [time];
+
+    const domPhrase = dom.coversAll ? '' : `on day ${listWords(sorted(dom.values).map(String))} of the month`;
+    let dowPhrase = '';
+    if (!dow.coversAll) {
+      const days = sorted(dow.values);
+      const names = days.map((d) => DOW_NAMES[d]);
+      if (days.length === 1) dowPhrase = `every ${names[0]}`;
+      else if (days.length === 2 && days[0] === 0 && days[1] === 6) dowPhrase = 'on weekends';
+      else if (isContiguous(days)) dowPhrase = `${names[0]} through ${names[names.length - 1]}`;
+      else dowPhrase = `on ${listWords(names)}`;
+    }
+    // real cron: when BOTH date fields are restricted, a run happens if EITHER matches
+    if (domPhrase && dowPhrase) parts.push(`${domPhrase} or ${dowPhrase}`);
+    else if (domPhrase) parts.push(domPhrase);
+    else if (dowPhrase) parts.push(dowPhrase);
+
+    if (!month.coversAll) parts.push(`in ${listWords(sorted(month.values).map((v) => MONTH_NAMES[v - 1]))}`);
+
+    const sentence = parts.join(', ');
+    return sentence.charAt(0).toUpperCase() + sentence.slice(1);
+  }
+
+  // --- Next runs ------------------------------------------------------------
+
+  function nextRuns(fields: ParsedField[], count: number): Date[] {
+    const [minute, hour, dom, month, dow] = fields;
+    const first = new Date();
+    first.setSeconds(0, 0);
+    first.setMinutes(first.getMinutes() + 1);
+    const hours = sorted(hour.values);
+    const minutes = sorted(minute.values);
+    const runs: Date[] = [];
+
+    for (let off = 0; off < 1461 && runs.length < count; off++) {
+      const day = new Date(first.getFullYear(), first.getMonth(), first.getDate() + off);
+      if (!month.values.has(day.getMonth() + 1)) continue;
+      const domOk = dom.values.has(day.getDate());
+      const dowOk = dow.values.has(day.getDay());
+      const dateOk =
+        !dom.coversAll && !dow.coversAll
+          ? domOk || dowOk // vixie-cron OR rule
+          : (dom.coversAll || domOk) && (dow.coversAll || dowOk);
+      if (!dateOk) continue;
+      for (const h of hours) {
+        for (const m of minutes) {
+          const t = new Date(day.getFullYear(), day.getMonth(), day.getDate(), h, m);
+          if (t >= first) {
+            runs.push(t);
+            if (runs.length === count) return runs;
+          }
+        }
+      }
+    }
+    return runs;
+  }
+
+  function relative(t: Date): string {
+    const s = Math.max(0, Math.floor((t.getTime() - Date.now()) / 1000));
+    const d = Math.floor(s / 86400);
+    const h = Math.floor((s % 86400) / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    if (d > 0) return `in ${d}d ${h}h`;
+    if (h > 0) return `in ${h}h ${m}m`;
+    return `in ${m}m`;
+  }
+
+  function runLabel(t: Date, utc: boolean): string {
+    if (utc) {
+      const fmt = new Intl.DateTimeFormat(undefined, {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        timeZone: 'UTC',
+      });
+      return `${fmt.format(t)} UTC`;
+    }
+    const timeFmt = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' });
+    const today = new Date();
+    const tomorrow = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
+    if (t.toDateString() === today.toDateString()) return `Today at ${timeFmt.format(t)}`;
+    if (t.toDateString() === tomorrow.toDateString()) return `Tomorrow at ${timeFmt.format(t)}`;
+    const fmt = new Intl.DateTimeFormat(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+    return fmt.format(t);
+  }
+
+  // --- Render ---------------------------------------------------------------
+
+  let utcMode = false;
+  let currentFields: ParsedField[] | null = null;
+
+  function renderModeButtons() {
+    const active = 'bg-indigo-500/20 text-indigo-300';
+    const idle = 'text-zinc-500 hover:text-zinc-300';
+    modeLocal.className = `rounded-md px-2.5 py-1 transition ${utcMode ? idle : active}`;
+    modeUtc.className = `rounded-md px-2.5 py-1 transition ${utcMode ? active : idle}`;
+  }
+
+  function renderRuns() {
+    if (!currentFields) {
+      runsList.replaceChildren();
+      return;
+    }
+    const runs = nextRuns(currentFields, 5);
+    runsList.replaceChildren(
+      ...(runs.length === 0
+        ? [Object.assign(document.createElement('li'), { textContent: 'No runs found in the next 4 years.', className: 'text-sm text-zinc-500' })]
+        : runs.map((t, i) => {
+            const li = document.createElement('li');
+            li.className = 'flex items-center justify-between gap-3 rounded-lg border border-zinc-800 bg-zinc-950/60 px-4 py-2.5';
+            const left = document.createElement('span');
+            left.className = 'flex items-center gap-3';
+            const num = document.createElement('span');
+            num.className = 'font-mono text-xs text-zinc-600';
+            num.textContent = String(i + 1);
+            const label = document.createElement('span');
+            label.className = 'text-sm font-medium text-zinc-200';
+            label.textContent = runLabel(t, utcMode);
+            left.append(num, label);
+            const rel = document.createElement('span');
+            rel.className = 'rounded-full bg-indigo-500/15 px-2.5 py-0.5 font-mono text-xs text-indigo-300';
+            rel.textContent = relative(t);
+            li.append(left, rel);
+            return li;
+          }))
+    );
+  }
+
+  function parse() {
+    let text = cronInput.value.trim();
+    aliasNote.hidden = true;
+    const aliasTarget = ALIASES[text.toLowerCase()];
+    if (aliasTarget) {
+      aliasNote.textContent = `alias expanded: ${text.toLowerCase()} → ${aliasTarget}`;
+      aliasNote.hidden = false;
+      text = aliasTarget;
+    } else if (text.startsWith('@')) {
+      showError(`unknown alias "${text}" — try @hourly, @daily, @weekly, @monthly or @yearly.`, null);
+      return;
+    }
+
+    const rawFields = text.split(/\s+/).filter(Boolean);
+    if (rawFields.length !== 5) {
+      showError(`expected 5 space-separated fields, found ${rawFields.length}.`, null);
+      return;
+    }
+
+    const fields = rawFields.map((raw, i) => parseField(raw, SPECS[i]));
+    const badIndex = fields.findIndex((f) => f.error);
+
+    fields.forEach((f, i) => {
+      chips[i].textContent = f.raw;
+      chips[i].className = `shrink-0 rounded px-2 py-0.5 font-mono text-xs ${
+        f.error ? 'bg-red-500/15 text-red-400' : 'bg-zinc-800 text-indigo-300'
+      }`;
+      descs[i].textContent = f.error ?? f.desc;
+      descs[i].className = `truncate text-sm ${f.error ? 'text-red-400' : 'text-zinc-400'}`;
+    });
+
+    if (badIndex !== -1) {
+      showError(`${SPECS[badIndex].label} field: ${fields[badIndex].error}`, badIndex);
+      return;
+    }
+
+    errorEl.hidden = true;
+    cronInput.classList.remove('border-red-500/60');
+    currentFields = fields;
+    translationEl.textContent = humanize(fields);
+    renderRuns();
+  }
+
+  function showError(message: string, fieldIndex: number | null) {
+    errorEl.textContent = message;
+    errorEl.hidden = false;
+    cronInput.classList.add('border-red-500/60');
+    translationEl.textContent = '—';
+    currentFields = null;
+    renderRuns();
+    if (fieldIndex === null) {
+      chips.forEach((c, i) => {
+        c.textContent = '—';
+        c.className = 'shrink-0 rounded bg-zinc-800 px-2 py-0.5 font-mono text-xs text-zinc-500';
+        descs[i].textContent = '—';
+        descs[i].className = 'truncate text-sm text-zinc-500';
+      });
+    }
+  }
+
+  cronInput.addEventListener('input', parse);
+  modeLocal.addEventListener('click', () => {
+    utcMode = false;
+    renderModeButtons();
+    renderRuns();
+  });
+  modeUtc.addEventListener('click', () => {
+    utcMode = true;
+    renderModeButtons();
+    renderRuns();
+  });
+  setInterval(renderRuns, 30_000); // keep countdown chips fresh
+
+  renderModeButtons();
+  parse();
+</script>

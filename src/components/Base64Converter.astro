@@ -1,0 +1,338 @@
+---
+interface Props {
+  defaultMode: 'text' | 'file';
+  defaultDirection: 'encode' | 'decode';
+  defaultInput: string;
+}
+
+const { defaultMode, defaultDirection, defaultInput } = Astro.props;
+---
+
+<div id="base64-converter" data-mode={defaultMode} data-direction={defaultDirection} class="flex flex-col gap-4">
+  <!-- Mode & direction controls -->
+  <section class="flex flex-wrap items-center gap-4 rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
+    <div class="flex rounded-lg border border-zinc-700 p-0.5 font-mono text-xs">
+      <button type="button" data-el="mode-text" class="rounded-md px-3 py-1.5 transition">✎ Text Mode</button>
+      <button type="button" data-el="mode-file" class="rounded-md px-3 py-1.5 transition">⇪ File Mode</button>
+    </div>
+    <div class="flex rounded-lg border border-zinc-700 p-0.5 font-mono text-xs">
+      <button type="button" data-el="dir-encode" class="rounded-md px-3 py-1.5 transition">→ Encode</button>
+      <button type="button" data-el="dir-decode" class="rounded-md px-3 py-1.5 transition">← Decode</button>
+    </div>
+    <label data-el="prefix-wrap" class="ml-auto flex cursor-pointer items-center gap-2 text-xs text-zinc-400" hidden>
+      <input data-el="prefix" type="checkbox" checked class="accent-indigo-400" />
+      include <code class="font-mono text-indigo-300">data:</code> URL prefix
+    </label>
+  </section>
+
+  <div class="grid gap-5 lg:grid-cols-2">
+    <!-- Left: input -->
+    <section class="flex flex-col gap-3 rounded-xl border border-zinc-800 bg-zinc-900/40 p-5">
+      <label for="b64-input" class="text-sm font-semibold text-zinc-200">Input</label>
+      <textarea
+        id="b64-input"
+        data-el="input"
+        spellcheck="false"
+        class="h-72 w-full grow resize-y rounded-lg border border-zinc-700 bg-zinc-950 px-4 py-3 font-mono text-sm leading-6 break-all text-zinc-200 caret-indigo-300 transition outline-none focus:border-indigo-400/60"
+      >{defaultInput}</textarea>
+      <div
+        data-el="dropzone"
+        hidden
+        class="flex h-72 grow cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-zinc-700 text-sm text-zinc-500 transition hover:border-zinc-500 hover:text-zinc-300"
+      >
+        <span class="text-2xl" aria-hidden="true">⇪</span>
+        <span>drag &amp; drop an image or small file here</span>
+        <span>or <span class="font-semibold text-indigo-300">browse</span> — max 2 MB</span>
+        <input data-el="file" type="file" class="hidden" />
+      </div>
+      <p data-el="file-info" hidden class="font-mono text-xs text-zinc-500"></p>
+      <p data-el="error" hidden class="rounded-md bg-red-500/10 px-3 py-2 font-mono text-xs text-red-400"></p>
+      <p data-el="note" hidden class="rounded-md bg-zinc-800/60 px-3 py-2 font-mono text-xs text-zinc-400"></p>
+    </section>
+
+    <!-- Right: output & preview sandbox -->
+    <section class="flex flex-col gap-3 rounded-xl border border-zinc-800 bg-zinc-900/40 p-5">
+      <div class="flex items-center justify-between">
+        <label for="b64-output" class="text-sm font-semibold text-zinc-200">Output</label>
+        <span class="flex items-center gap-3">
+          <span data-el="sizes" class="font-mono text-xs text-zinc-500"></span>
+          <button
+            type="button"
+            data-el="copy"
+            class="rounded-md border border-zinc-700 px-2.5 py-1 font-mono text-xs text-zinc-400 transition hover:border-zinc-500 hover:text-zinc-100"
+          >
+            copy
+          </button>
+        </span>
+      </div>
+      <textarea
+        id="b64-output"
+        data-el="output"
+        readonly
+        spellcheck="false"
+        class="h-48 w-full grow resize-y rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-3 font-mono text-sm leading-6 break-all text-emerald-300/90 outline-none"
+      ></textarea>
+      <div data-el="preview-wrap" hidden class="rounded-lg border border-zinc-800 bg-zinc-950 p-4">
+        <p class="mb-2 font-mono text-xs text-zinc-500">live preview sandbox</p>
+        <img
+          data-el="preview"
+          alt="decoded image preview"
+          class="max-h-48 max-w-full rounded-md border border-zinc-800 bg-[repeating-conic-gradient(#27272a_0_25%,#18181b_0_50%)] bg-[length:16px_16px]"
+        />
+        <p data-el="preview-meta" class="mt-2 font-mono text-xs text-zinc-500"></p>
+      </div>
+      <p class="text-xs text-zinc-500">
+        Encoded and decoded with your browser&rsquo;s native <code class="font-mono">btoa</code>/<code class="font-mono">atob</code>
+        and <code class="font-mono">FileReader</code> — text and files never leave this tab.
+      </p>
+    </section>
+  </div>
+</div>
+
+<script>
+  import { formatBytes, byteLength } from '../scripts/format';
+
+  const root = document.getElementById('base64-converter')!;
+  const el = <T extends HTMLElement>(name: string) => root.querySelector<T>(`[data-el="${name}"]`)!;
+
+  const input = el<HTMLTextAreaElement>('input');
+  const output = el<HTMLTextAreaElement>('output');
+  const dropzone = el<HTMLDivElement>('dropzone');
+  const fileInput = el<HTMLInputElement>('file');
+  const fileInfo = el<HTMLParagraphElement>('file-info');
+  const errorEl = el<HTMLParagraphElement>('error');
+  const noteEl = el<HTMLParagraphElement>('note');
+  const sizesEl = el<HTMLSpanElement>('sizes');
+  const copyBtn = el<HTMLButtonElement>('copy');
+  const previewWrap = el<HTMLDivElement>('preview-wrap');
+  const previewImg = el<HTMLImageElement>('preview');
+  const previewMeta = el<HTMLParagraphElement>('preview-meta');
+  const prefixWrap = el<HTMLLabelElement>('prefix-wrap');
+  const prefixToggle = el<HTMLInputElement>('prefix');
+  const modeTextBtn = el<HTMLButtonElement>('mode-text');
+  const modeFileBtn = el<HTMLButtonElement>('mode-file');
+  const dirEncodeBtn = el<HTMLButtonElement>('dir-encode');
+  const dirDecodeBtn = el<HTMLButtonElement>('dir-decode');
+
+  const MAX_FILE_BYTES = 2 * 1024 * 1024;
+
+  let mode = (root.dataset.mode ?? 'text') as 'text' | 'file';
+  let direction = (root.dataset.direction ?? 'encode') as 'encode' | 'decode';
+  let fileDataUrl = ''; // last loaded file, as a data URL
+
+  // --- UTF-8-safe codecs ------------------------------------------------------
+
+  /** btoa chokes on code points above 0xFF; go through TextEncoder bytes, chunked. */
+  function bytesToBase64(bytes: Uint8Array): string {
+    let binary = '';
+    for (let i = 0; i < bytes.length; i += 0x8000) {
+      binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+    }
+    return btoa(binary);
+  }
+
+  const encodeText = (text: string) => bytesToBase64(new TextEncoder().encode(text));
+
+  function base64ToBytes(b64: string): Uint8Array {
+    const binary = atob(b64); // throws on invalid characters
+    return Uint8Array.from(binary, (c) => c.charCodeAt(0));
+  }
+
+  /** Accepts real-world Base64: whitespace, URL-safe alphabet, missing padding. */
+  function normalizeBase64(raw: string): string {
+    let s = raw.replace(/\s+/g, '').replace(/-/g, '+').replace(/_/g, '/');
+    if (s.length % 4 !== 0) s += '='.repeat((4 - (s.length % 4)) % 4);
+    return s;
+  }
+
+  const IMAGE_SIGNATURES: [string, (b: Uint8Array) => boolean][] = [
+    ['image/png', (b) => b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47],
+    ['image/jpeg', (b) => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff],
+    ['image/gif', (b) => b[0] === 0x47 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x38],
+    ['image/webp', (b) => b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50],
+  ];
+
+  const sniffImageMime = (bytes: Uint8Array) =>
+    bytes.length > 12 ? (IMAGE_SIGNATURES.find(([, test]) => test(bytes))?.[0] ?? null) : null;
+
+  // --- Rendering ----------------------------------------------------------------
+
+  function setError(message: string) {
+    errorEl.textContent = message;
+    errorEl.hidden = false;
+    output.value = '';
+    sizesEl.textContent = '';
+    previewWrap.hidden = true;
+  }
+
+  function setNote(message: string) {
+    noteEl.textContent = message;
+    noteEl.hidden = false;
+  }
+
+  function showPreview(dataUrl: string, meta: string) {
+    previewImg.src = dataUrl;
+    previewMeta.textContent = meta;
+    previewWrap.hidden = false;
+  }
+
+  function showSizes(inBytes: number, outBytes: number) {
+    const delta = inBytes > 0 ? Math.round((outBytes / inBytes - 1) * 100) : 0;
+    sizesEl.textContent = `${formatBytes(inBytes)} → ${formatBytes(outBytes)}${delta !== 0 ? ` (${delta > 0 ? '+' : ''}${delta}%)` : ''}`;
+  }
+
+  function convert() {
+    errorEl.hidden = true;
+    noteEl.hidden = true;
+    previewWrap.hidden = true;
+
+    if (mode === 'file') {
+      if (fileDataUrl === '') {
+        output.value = '';
+        sizesEl.textContent = '';
+        return;
+      }
+      const withPrefix = prefixToggle.checked;
+      const result = withPrefix ? fileDataUrl : fileDataUrl.replace(/^data:[^,]*,/, '');
+      output.value = result;
+      const rawBytes = Math.floor(fileDataUrl.replace(/^data:[^,]*,/, '').length * 0.75);
+      showSizes(rawBytes, byteLength(result));
+      if (fileDataUrl.startsWith('data:image/')) {
+        showPreview(fileDataUrl, `${fileDataUrl.match(/^data:([^;,]+)/)?.[1]} · rendered from the encoded output`);
+      }
+      return;
+    }
+
+    const raw = input.value;
+    if (raw.trim() === '') {
+      output.value = '';
+      sizesEl.textContent = '';
+      return;
+    }
+
+    if (direction === 'encode') {
+      const encoded = encodeText(raw);
+      output.value = encoded;
+      showSizes(byteLength(raw), encoded.length);
+      return;
+    }
+
+    // decode
+    let source = raw.trim();
+    const dataUrlMatch = source.match(/^data:([^;,]*)(;base64)?,([\s\S]*)$/);
+    if (dataUrlMatch) {
+      source = dataUrlMatch[3];
+      setNote(`data: URL detected — decoding its ${dataUrlMatch[1] || 'text/plain'} payload.`);
+    }
+    let bytes: Uint8Array;
+    try {
+      bytes = base64ToBytes(normalizeBase64(source));
+    } catch {
+      setError('Not valid Base64 — check for stray characters or a truncated string.');
+      return;
+    }
+    try {
+      const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+      output.value = text;
+      showSizes(byteLength(input.value), byteLength(text));
+    } catch {
+      // binary payload — sniff for an image and preview it instead of printing noise
+      const mime = sniffImageMime(bytes);
+      const dataUrl = `data:${mime ?? 'application/octet-stream'};base64,${bytesToBase64(bytes)}`;
+      output.value = dataUrl;
+      showSizes(byteLength(input.value), bytes.length);
+      if (mime) {
+        setNote(`binary ${mime} detected (${formatBytes(bytes.length)}) — output is a ready-to-use data URL.`);
+        showPreview(dataUrl, `${mime} · ${formatBytes(bytes.length)} decoded`);
+      } else {
+        setNote(`binary data detected (${formatBytes(bytes.length)}) — not valid UTF-8 text; output is a data URL.`);
+      }
+    }
+  }
+
+  // --- Mode & direction ---------------------------------------------------------
+
+  const ACTIVE = 'bg-indigo-500/20 text-indigo-300';
+  const IDLE = 'text-zinc-500 hover:text-zinc-300';
+  const DISABLED = 'text-zinc-700 cursor-not-allowed';
+
+  function renderControls() {
+    modeTextBtn.className = `rounded-md px-3 py-1.5 transition ${mode === 'text' ? ACTIVE : IDLE}`;
+    modeFileBtn.className = `rounded-md px-3 py-1.5 transition ${mode === 'file' ? ACTIVE : IDLE}`;
+    dirEncodeBtn.className = `rounded-md px-3 py-1.5 transition ${direction === 'encode' ? ACTIVE : IDLE}`;
+    dirDecodeBtn.className = `rounded-md px-3 py-1.5 transition ${mode === 'file' ? DISABLED : direction === 'decode' ? ACTIVE : IDLE}`;
+    dirDecodeBtn.title = mode === 'file' ? 'files are always encoded — switch to Text Mode to decode' : '';
+    input.hidden = mode === 'file';
+    dropzone.hidden = mode === 'text';
+    fileInfo.hidden = mode === 'text' || fileDataUrl === '';
+    prefixWrap.hidden = mode === 'text';
+  }
+
+  function setMode(next: 'text' | 'file') {
+    mode = next;
+    if (mode === 'file') direction = 'encode'; // decoding a *file* isn't a thing
+    renderControls();
+    convert();
+  }
+
+  function setDirection(next: 'encode' | 'decode') {
+    if (mode === 'file' && next === 'decode') return;
+    direction = next;
+    renderControls();
+    convert();
+  }
+
+  async function loadFile(file: File | undefined) {
+    if (!file) return;
+    errorEl.hidden = true;
+    if (file.size > MAX_FILE_BYTES) {
+      setError(`That file is ${formatBytes(file.size)} — keep it under ${formatBytes(MAX_FILE_BYTES)}; giant data URLs help no one.`);
+      return;
+    }
+    fileDataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
+    fileInfo.textContent = `${file.name} · ${file.type || 'unknown type'} · ${formatBytes(file.size)}`;
+    fileInfo.hidden = false;
+    convert();
+  }
+
+  // --- Wiring ---------------------------------------------------------------------
+
+  let debounceTimer: ReturnType<typeof setTimeout>;
+  input.addEventListener('input', () => {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(convert, 120);
+  });
+
+  modeTextBtn.addEventListener('click', () => setMode('text'));
+  modeFileBtn.addEventListener('click', () => setMode('file'));
+  dirEncodeBtn.addEventListener('click', () => setDirection('encode'));
+  dirDecodeBtn.addEventListener('click', () => setDirection('decode'));
+  prefixToggle.addEventListener('change', convert);
+
+  dropzone.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', () => loadFile(fileInput.files?.[0]));
+  dropzone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropzone.classList.add('border-indigo-400/60', 'text-zinc-300');
+  });
+  dropzone.addEventListener('dragleave', () => dropzone.classList.remove('border-indigo-400/60', 'text-zinc-300'));
+  dropzone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropzone.classList.remove('border-indigo-400/60', 'text-zinc-300');
+    loadFile(e.dataTransfer?.files?.[0]);
+  });
+
+  copyBtn.addEventListener('click', async () => {
+    await navigator.clipboard.writeText(output.value);
+    copyBtn.textContent = 'copied!';
+    setTimeout(() => (copyBtn.textContent = 'copy'), 1200);
+  });
+
+  renderControls();
+  convert();
+</script>

@@ -1,0 +1,85 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import SiteHeader from '../../components/SiteHeader.astro';
+import SiteFooter from '../../components/SiteFooter.astro';
+import CronParser from '../../components/CronParser.astro';
+import { cronTools } from '../../data/cronTools';
+
+export function getStaticPaths() {
+  return cronTools.map((tool) => ({
+    params: { slug: tool.slug },
+    props: { tool },
+  }));
+}
+
+const { tool } = Astro.props;
+const related = cronTools.filter((t) => t.slug !== tool.slug);
+---
+
+<Layout title={tool.metaTitle} description={tool.metaDescription}>
+  <SiteHeader />
+
+  <main class="mx-auto max-w-6xl px-4 py-10 sm:px-6">
+    <nav class="mb-6 font-mono text-xs text-zinc-500">
+      <a href="/" class="transition hover:text-zinc-300">sandboxmax</a>
+      <span class="mx-1">/</span>
+      <a href="/cron/every-5-minutes-cron-expression" class="transition hover:text-zinc-300">cron</a>
+      <span class="mx-1">/</span>
+      <span class="text-zinc-400">{tool.slug}</span>
+    </nav>
+
+    <div class="mb-8 max-w-3xl">
+      <h1 class="text-3xl font-extrabold tracking-tight text-zinc-50 sm:text-4xl">
+        {tool.toolTitle}
+      </h1>
+      <p class="mt-3 leading-relaxed text-zinc-400">{tool.explanation}</p>
+      <p class="mt-3 inline-flex items-center gap-2 rounded-full border border-emerald-400/25 bg-emerald-400/10 px-3 py-1 font-mono text-xs text-emerald-300">
+        <span class="size-1.5 rounded-full bg-emerald-400"></span>
+        runs 100% in your browser — schedules stay private
+      </p>
+    </div>
+
+    <ol class="mb-6 grid gap-3 sm:grid-cols-3">
+      {
+        [
+          ['Paste your cron', 'Five space-separated fields — day and month names (MON-FRI, JAN) and @daily-style aliases work too.'],
+          ['Read the translation', 'Instant plain English, plus a field-by-field breakdown of what each token means.'],
+          ['Check the timeline', 'Your next 5 execution times with live countdowns — shown in local time or UTC.'],
+        ].map(([title, body], i) => (
+          <li class="flex items-start gap-3 rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
+            <span class="flex size-7 shrink-0 items-center justify-center rounded-full bg-indigo-500/15 font-mono text-sm font-bold text-indigo-300">
+              {i + 1}
+            </span>
+            <span>
+              <span class="block text-sm font-semibold text-zinc-100">{title}</span>
+              <span class="mt-0.5 block text-sm text-zinc-400">{body}</span>
+            </span>
+          </li>
+        ))
+      }
+    </ol>
+
+    <CronParser defaultCron={tool.defaultCron} />
+
+    {
+      related.length > 0 && (
+        <section class="mt-14">
+          <h2 class="mb-4 text-lg font-bold text-zinc-100">More cron tools</h2>
+          <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {related.map((t) => (
+              <a
+                href={`/cron/${t.slug}`}
+                class="group rounded-xl border border-zinc-800 bg-zinc-900/40 p-5 transition hover:border-indigo-400/40 hover:bg-zinc-900"
+              >
+                <span class="font-mono text-xs text-zinc-500">/cron/{t.slug}</span>
+                <h3 class="mt-1 font-semibold text-zinc-100 group-hover:text-indigo-300">{t.toolTitle}</h3>
+              </a>
+            ))}
+          </div>
+        </section>
+      )
+    }
+  </main>
+
+  <SiteFooter />
+</Layout>

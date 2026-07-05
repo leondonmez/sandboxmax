@@ -1,0 +1,102 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import SiteHeader from '../../components/SiteHeader.astro';
+import SiteFooter from '../../components/SiteFooter.astro';
+import Base64Converter from '../../components/Base64Converter.astro';
+import { base64Tools } from '../../data/base64Tools';
+
+export function getStaticPaths() {
+  return base64Tools.map((tool) => ({
+    params: { slug: tool.slug },
+    props: { tool },
+  }));
+}
+
+const { tool } = Astro.props;
+const related = base64Tools.filter((t) => t.slug !== tool.slug);
+---
+
+<Layout title={tool.metaTitle} description={tool.metaDescription}>
+  <SiteHeader />
+
+  <main class="mx-auto max-w-6xl px-4 py-10 sm:px-6">
+    <nav class="mb-6 font-mono text-xs text-zinc-500">
+      <a href="/" class="transition hover:text-zinc-300">sandboxmax</a>
+      <span class="mx-1">/</span>
+      <a href="/base64/encode-text-to-base64" class="transition hover:text-zinc-300">base64</a>
+      <span class="mx-1">/</span>
+      <span class="text-zinc-400">{tool.slug}</span>
+    </nav>
+
+    <div class="mb-8 max-w-3xl">
+      <h1 class="text-3xl font-extrabold tracking-tight text-zinc-50 sm:text-4xl">
+        {tool.toolTitle}
+      </h1>
+      <p class="mt-3 leading-relaxed text-zinc-400">{tool.explanation}</p>
+      <p class="mt-3 inline-flex items-center gap-2 rounded-full border border-emerald-400/25 bg-emerald-400/10 px-3 py-1 font-mono text-xs text-emerald-300">
+        <span class="size-1.5 rounded-full bg-emerald-400"></span>
+        runs 100% in your browser — text &amp; files never uploaded
+      </p>
+    </div>
+
+    <ol class="mb-6 grid gap-3 sm:grid-cols-3">
+      {
+        [
+          ['Pick mode & direction', 'Text Mode for strings, File Mode for images and small files; encode or decode.'],
+          ['Paste or drop', 'Conversion runs on every keystroke — UTF-8, URL-safe Base64, and data: URLs all handled.'],
+          ['Copy or preview', 'Grab the result with one click; decoded images render live in the preview sandbox.'],
+        ].map(([title, body], i) => (
+          <li class="flex items-start gap-3 rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
+            <span class="flex size-7 shrink-0 items-center justify-center rounded-full bg-indigo-500/15 font-mono text-sm font-bold text-indigo-300">
+              {i + 1}
+            </span>
+            <span>
+              <span class="block text-sm font-semibold text-zinc-100">{title}</span>
+              <span class="mt-0.5 block text-sm text-zinc-400">{body}</span>
+            </span>
+          </li>
+        ))
+      }
+    </ol>
+
+    <Base64Converter
+      defaultMode={tool.defaultMode}
+      defaultDirection={tool.defaultDirection}
+      defaultInput={tool.defaultInput}
+    />
+
+    {
+      tool.usageSnippet && (
+        <section class="mt-8 rounded-xl border border-zinc-800 bg-zinc-900/40 p-5">
+          <h2 class="mb-2 text-sm font-semibold text-zinc-200">How to embed the result</h2>
+          <pre class="overflow-auto rounded-lg bg-zinc-950 px-4 py-3 font-mono text-xs leading-5 text-zinc-400">{tool.usageSnippet}</pre>
+          <p class="mt-2 text-xs text-zinc-500">
+            Rule of thumb: data URLs shine for small assets (icons, logos under ~10 KB) where saving an HTTP request
+            beats the ~33% Base64 size overhead — for bigger images, a normal file is usually the better call.
+          </p>
+        </section>
+      )
+    }
+
+    {
+      related.length > 0 && (
+        <section class="mt-14">
+          <h2 class="mb-4 text-lg font-bold text-zinc-100">More Base64 tools</h2>
+          <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {related.map((t) => (
+              <a
+                href={`/base64/${t.slug}`}
+                class="group rounded-xl border border-zinc-800 bg-zinc-900/40 p-5 transition hover:border-indigo-400/40 hover:bg-zinc-900"
+              >
+                <span class="font-mono text-xs text-zinc-500">/base64/{t.slug}</span>
+                <h3 class="mt-1 font-semibold text-zinc-100 group-hover:text-indigo-300">{t.toolTitle}</h3>
+              </a>
+            ))}
+          </div>
+        </section>
+      )
+    }
+  </main>
+
+  <SiteFooter />
+</Layout>

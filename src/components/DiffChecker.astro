@@ -1,0 +1,355 @@
+---
+interface Props {
+  leftLabel: string;
+  rightLabel: string;
+  leftData: string;
+  rightData: string;
+}
+
+const { leftLabel, rightLabel, leftData, rightData } = Astro.props;
+---
+
+<div id="diff-checker" class="flex flex-col gap-4">
+  <!-- Control workspace row -->
+  <section class="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
+    <div class="flex flex-wrap items-center gap-x-6 gap-y-3">
+      <div class="flex items-center gap-4 font-mono text-xs text-zinc-400">
+        <span>
+          lines <span data-el="line-count" class="font-bold text-zinc-100">0 / 0</span>
+        </span>
+        <span>
+          deviations <span data-el="deviation-count" class="font-bold text-zinc-100">0</span>
+        </span>
+        <span class="flex gap-1.5">
+          <span data-el="chip-add" class="rounded-full bg-emerald-950/60 px-2 py-0.5 text-emerald-300">+0</span>
+          <span data-el="chip-del" class="rounded-full bg-rose-950/60 px-2 py-0.5 text-rose-300">−0</span>
+          <span data-el="chip-mod" class="rounded-full bg-amber-950/60 px-2 py-0.5 text-amber-300">~0</span>
+        </span>
+      </div>
+
+      <div class="ml-auto flex flex-wrap items-center gap-4">
+        <label class="flex cursor-pointer items-center gap-2.5 text-sm text-zinc-300">
+          <input data-el="semantic" type="checkbox" class="peer sr-only" />
+          <span class="relative h-5 w-9 rounded-full bg-zinc-700 transition peer-checked:bg-indigo-500 after:absolute after:top-0.5 after:left-0.5 after:size-4 after:rounded-full after:bg-zinc-300 after:transition peer-checked:after:translate-x-4"></span>
+          Semantic JSON mode
+        </label>
+        <button
+          type="button"
+          data-el="swap"
+          class="rounded-md border border-zinc-700 px-3 py-1.5 text-xs font-semibold text-zinc-300 transition hover:border-zinc-500 hover:text-zinc-100"
+        >
+          ⇄ Swap panels
+        </button>
+      </div>
+    </div>
+    <p data-el="warning" hidden class="mt-3 rounded-md bg-red-500/10 px-3 py-2 font-mono text-xs text-red-400"></p>
+    <p data-el="semantic-note" hidden class="mt-3 rounded-md bg-emerald-400/10 px-3 py-2 font-mono text-xs text-emerald-300"></p>
+  </section>
+
+  <!-- Split view -->
+  <section class="grid gap-4 lg:grid-cols-2">
+    {
+      [
+        { side: 'left', label: leftLabel, data: leftData },
+        { side: 'right', label: rightLabel, data: rightData },
+      ].map(({ side, label, data }) => (
+        <div class="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
+          <label for={`diff-${side}`} class="mb-2 flex items-center gap-2 text-sm font-semibold text-zinc-200">
+            <span class:list={['size-2 rounded-full', side === 'left' ? 'bg-rose-400' : 'bg-emerald-400']} />
+            {label}
+          </label>
+          <div class="relative h-96 overflow-hidden rounded-lg border border-zinc-700 bg-zinc-950 transition focus-within:border-indigo-400/60">
+            <div
+              data-el={`backdrop-${side}`}
+              aria-hidden="true"
+              class="pointer-events-none absolute inset-0 overflow-auto px-4 py-3 font-mono text-sm leading-6 break-words whitespace-pre-wrap text-zinc-300"
+            />
+            <textarea
+              id={`diff-${side}`}
+              data-el={`text-${side}`}
+              spellcheck="false"
+              class="absolute inset-0 size-full resize-none overflow-auto bg-transparent px-4 py-3 font-mono text-sm leading-6 break-words whitespace-pre-wrap text-transparent caret-indigo-300 outline-none"
+            >{data}</textarea>
+          </div>
+        </div>
+      ))
+    }
+  </section>
+</div>
+
+<script>
+  import { escapeHtml } from '../scripts/format';
+
+  const root = document.getElementById('diff-checker')!;
+  const el = <T extends HTMLElement>(name: string) => root.querySelector<T>(`[data-el="${name}"]`)!;
+
+  const leftArea = el<HTMLTextAreaElement>('text-left');
+  const rightArea = el<HTMLTextAreaElement>('text-right');
+  const leftBackdrop = el<HTMLDivElement>('backdrop-left');
+  const rightBackdrop = el<HTMLDivElement>('backdrop-right');
+  const lineCount = el<HTMLSpanElement>('line-count');
+  const deviationCount = el<HTMLSpanElement>('deviation-count');
+  const chipAdd = el<HTMLSpanElement>('chip-add');
+  const chipDel = el<HTMLSpanElement>('chip-del');
+  const chipMod = el<HTMLSpanElement>('chip-mod');
+  const semanticToggle = el<HTMLInputElement>('semantic');
+  const swapBtn = el<HTMLButtonElement>('swap');
+  const warningEl = el<HTMLParagraphElement>('warning');
+  const semanticNote = el<HTMLParagraphElement>('semantic-note');
+
+  const LCS_CELL_LIMIT = 4_000_000; // beyond this, fall back to index-by-index pairing
+
+  type Mark =
+    | { type: 'del' | 'add' }
+    | { type: 'mod'; from: number; to: number }; // char range to emphasize
+
+  interface DiffResult {
+    left: Map<number, Mark>;
+    right: Map<number, Mark>;
+    added: number;
+    removed: number;
+    changed: number;
+  }
+
+  /** LCS-based line diff with common prefix/suffix trimming. */
+  function diffLines(a: string[], b: string[]): DiffResult {
+    const result: DiffResult = { left: new Map(), right: new Map(), added: 0, removed: 0, changed: 0 };
+
+    let start = 0;
+    while (start < a.length && start < b.length && a[start] === b[start]) start++;
+    let endA = a.length;
+    let endB = b.length;
+    while (endA > start && endB > start && a[endA - 1] === b[endB - 1]) {
+      endA--;
+      endB--;
+    }
+
+    const midA = a.slice(start, endA);
+    const midB = b.slice(start, endB);
+    const m = midA.length;
+    const n = midB.length;
+
+    // ops over the middle section: -1 = removed from a, +1 = added in b, 0 = same
+    const ops: { op: -1 | 0 | 1; ai: number; bi: number }[] = [];
+
+    if (m * n <= LCS_CELL_LIMIT) {
+      const width = n + 1;
+      const dp = new Uint32Array((m + 1) * width);
+      for (let i = m - 1; i >= 0; i--) {
+        for (let j = n - 1; j >= 0; j--) {
+          dp[i * width + j] =
+            midA[i] === midB[j]
+              ? dp[(i + 1) * width + j + 1] + 1
+              : Math.max(dp[(i + 1) * width + j], dp[i * width + j + 1]);
+        }
+      }
+      let i = 0;
+      let j = 0;
+      while (i < m && j < n) {
+        if (midA[i] === midB[j]) {
+          ops.push({ op: 0, ai: i, bi: j });
+          i++;
+          j++;
+        } else if (dp[(i + 1) * width + j] >= dp[i * width + j + 1]) {
+          ops.push({ op: -1, ai: i, bi: j });
+          i++;
+        } else {
+          ops.push({ op: 1, ai: i, bi: j });
+          j++;
+        }
+      }
+      for (; i < m; i++) ops.push({ op: -1, ai: i, bi: n });
+      for (; j < n; j++) ops.push({ op: 1, ai: m, bi: j });
+    } else {
+      // huge input fallback: pair index-by-index
+      const shared = Math.min(m, n);
+      for (let k = 0; k < shared; k++) ops.push(midA[k] === midB[k] ? { op: 0, ai: k, bi: k } : { op: -1, ai: k, bi: k });
+      for (let k = 0; k < shared; k++) if (midA[k] !== midB[k]) ops.push({ op: 1, ai: k, bi: k });
+      for (let k = shared; k < m; k++) ops.push({ op: -1, ai: k, bi: n });
+      for (let k = shared; k < n; k++) ops.push({ op: 1, ai: m, bi: k });
+    }
+
+    // pair adjacent removal/addition runs into "changed" lines
+    let dels: number[] = [];
+    let adds: number[] = [];
+    const flush = () => {
+      const pairs = Math.min(dels.length, adds.length);
+      for (let k = 0; k < pairs; k++) {
+        const ai = dels[k];
+        const bi = adds[k];
+        const [fromA, toA, fromB, toB] = charRange(midA[ai], midB[bi]);
+        result.left.set(start + ai, { type: 'mod', from: fromA, to: toA });
+        result.right.set(start + bi, { type: 'mod', from: fromB, to: toB });
+        result.changed++;
+      }
+      for (let k = pairs; k < dels.length; k++) {
+        result.left.set(start + dels[k], { type: 'del' });
+        result.removed++;
+      }
+      for (let k = pairs; k < adds.length; k++) {
+        result.right.set(start + adds[k], { type: 'add' });
+        result.added++;
+      }
+      dels = [];
+      adds = [];
+    };
+    for (const { op, ai, bi } of ops) {
+      if (op === 0) {
+        flush();
+      } else if (op === -1) {
+        dels.push(ai);
+      } else {
+        adds.push(bi);
+      }
+    }
+    flush();
+    return result;
+  }
+
+  /** Common prefix/suffix char positions for a changed line pair. */
+  function charRange(a: string, b: string): [number, number, number, number] {
+    let p = 0;
+    const max = Math.min(a.length, b.length);
+    while (p < max && a[p] === b[p]) p++;
+    let s = 0;
+    while (s < max - p && a[a.length - 1 - s] === b[b.length - 1 - s]) s++;
+    return [p, a.length - s, p, b.length - s];
+  }
+
+  const LINE_STYLES = {
+    del: 'bg-rose-950/40 text-rose-300',
+    add: 'bg-emerald-950/40 text-emerald-300',
+    mod: 'bg-amber-950/40 text-amber-200',
+  };
+
+  function renderBackdrop(target: HTMLElement, lines: string[], marks: Map<number, Mark>) {
+    const html = lines
+      .map((line, i) => {
+        const mark = marks.get(i);
+        const body =
+          line === ''
+            ? '<br>'
+            : mark?.type === 'mod'
+              ? escapeHtml(line.slice(0, mark.from)) +
+                `<span class="rounded-sm bg-amber-500/25 text-amber-100">${escapeHtml(line.slice(mark.from, mark.to))}</span>` +
+                escapeHtml(line.slice(mark.to))
+              : escapeHtml(line);
+        return `<div class="${mark ? LINE_STYLES[mark.type] : ''}">${body}</div>`;
+      })
+      .join('');
+    target.innerHTML = html;
+  }
+
+  function recompute() {
+    const leftLines = leftArea.value.split('\n');
+    const rightLines = rightArea.value.split('\n');
+    const diff = diffLines(leftLines, rightLines);
+
+    renderBackdrop(leftBackdrop, leftLines, diff.left);
+    renderBackdrop(rightBackdrop, rightLines, diff.right);
+
+    lineCount.textContent = `${leftLines.length} / ${rightLines.length}`;
+    const total = diff.added + diff.removed + diff.changed;
+    deviationCount.textContent = String(total);
+    chipAdd.textContent = `+${diff.added}`;
+    chipDel.textContent = `−${diff.removed}`;
+    chipMod.textContent = `~${diff.changed}`;
+
+    if (semanticToggle.checked && total === 0 && leftArea.value.trim() !== '') {
+      semanticNote.textContent = '✓ semantically identical — key order was the only difference.';
+      semanticNote.hidden = false;
+    } else if (!semanticNote.hidden && total > 0) {
+      semanticNote.hidden = true;
+    }
+  }
+
+  // --- Semantic JSON mode ---------------------------------------------------
+
+  let savedLeft: string | null = null;
+  let savedRight: string | null = null;
+
+  function sortKeysDeep(value: unknown): unknown {
+    if (Array.isArray(value)) return value.map(sortKeysDeep);
+    if (value !== null && typeof value === 'object') {
+      return Object.fromEntries(
+        Object.entries(value as Record<string, unknown>)
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([k, v]) => [k, sortKeysDeep(v)])
+      );
+    }
+    return value;
+  }
+
+  semanticToggle.addEventListener('change', () => {
+    warningEl.hidden = true;
+    semanticNote.hidden = true;
+    if (semanticToggle.checked) {
+      let leftJson: unknown;
+      let rightJson: unknown;
+      try {
+        leftJson = JSON.parse(leftArea.value);
+      } catch {
+        warningEl.textContent = 'Semantic JSON mode needs valid JSON — the left panel does not parse.';
+        warningEl.hidden = false;
+        semanticToggle.checked = false;
+        return;
+      }
+      try {
+        rightJson = JSON.parse(rightArea.value);
+      } catch {
+        warningEl.textContent = 'Semantic JSON mode needs valid JSON — the right panel does not parse.';
+        warningEl.hidden = false;
+        semanticToggle.checked = false;
+        return;
+      }
+      savedLeft = leftArea.value;
+      savedRight = rightArea.value;
+      leftArea.value = JSON.stringify(sortKeysDeep(leftJson), null, 2);
+      rightArea.value = JSON.stringify(sortKeysDeep(rightJson), null, 2);
+    } else {
+      if (savedLeft !== null) leftArea.value = savedLeft;
+      if (savedRight !== null) rightArea.value = savedRight;
+      savedLeft = savedRight = null;
+    }
+    recompute();
+  });
+
+  // --- Wiring ---------------------------------------------------------------
+
+  let debounceTimer: ReturnType<typeof setTimeout>;
+  const onInput = (side: 'left' | 'right') => {
+    // an edit while semantic mode is on becomes the new content — don't restore over it
+    if (side === 'left') savedLeft = null;
+    else savedRight = null;
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(recompute, 150);
+  };
+  leftArea.addEventListener('input', () => onInput('left'));
+  rightArea.addEventListener('input', () => onInput('right'));
+
+  swapBtn.addEventListener('click', () => {
+    [leftArea.value, rightArea.value] = [rightArea.value, leftArea.value];
+    [savedLeft, savedRight] = [savedRight, savedLeft];
+    recompute();
+  });
+
+  let syncing = false;
+  const panels = [leftArea, rightArea];
+  const backdrops = [leftBackdrop, rightBackdrop];
+  panels.forEach((area, idx) => {
+    area.addEventListener('scroll', () => {
+      if (syncing) return;
+      syncing = true;
+      backdrops[idx].scrollTop = area.scrollTop;
+      backdrops[idx].scrollLeft = area.scrollLeft;
+      const other = panels[1 - idx];
+      other.scrollTop = area.scrollTop;
+      other.scrollLeft = area.scrollLeft;
+      backdrops[1 - idx].scrollTop = area.scrollTop;
+      backdrops[1 - idx].scrollLeft = area.scrollLeft;
+      syncing = false;
+    });
+  });
+
+  recompute();
+</script>

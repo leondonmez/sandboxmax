@@ -1,0 +1,326 @@
+---
+interface Props {
+  defaultToken: string;
+}
+
+const { defaultToken } = Astro.props;
+---
+
+<div id="jwt-debugger" class="grid gap-5 lg:grid-cols-2">
+  <!-- Left: encoded token workspace -->
+  <section class="flex flex-col gap-3 rounded-xl border border-zinc-800 bg-zinc-900/40 p-5">
+    <div class="flex items-center justify-between">
+      <label for="jwt-input" class="text-sm font-semibold text-zinc-200">Encoded token</label>
+      <span class="flex items-center gap-3 font-mono text-[11px] text-zinc-500">
+        <span class="flex items-center gap-1"><span class="size-2 rounded-full bg-rose-400"></span>header</span>
+        <span class="flex items-center gap-1"><span class="size-2 rounded-full bg-indigo-400"></span>payload</span>
+        <span class="flex items-center gap-1"><span class="size-2 rounded-full bg-teal-400"></span>signature</span>
+      </span>
+    </div>
+    <div class="relative h-56 overflow-hidden rounded-lg border border-zinc-700 bg-zinc-950 transition focus-within:border-indigo-400/60 lg:h-64">
+      <div
+        data-el="backdrop"
+        aria-hidden="true"
+        class="pointer-events-none absolute inset-0 overflow-auto px-4 py-3 font-mono text-sm leading-6 break-all whitespace-pre-wrap"
+      >
+      </div>
+      <textarea
+        id="jwt-input"
+        data-el="token"
+        spellcheck="false"
+        autocomplete="off"
+        class="absolute inset-0 size-full resize-none overflow-auto bg-transparent px-4 py-3 font-mono text-sm leading-6 break-all whitespace-pre-wrap text-transparent caret-indigo-300 outline-none"
+      >{defaultToken}</textarea>
+    </div>
+    <p data-el="error" hidden class="rounded-md bg-red-500/10 px-3 py-2 font-mono text-xs text-red-400"></p>
+    <p class="text-xs text-zinc-500">
+      Decoded locally with your browser&rsquo;s native Base64 — the token never leaves this tab. The signature is
+      displayed, <em class="not-italic font-semibold text-zinc-400">never verified</em>: this is a debugger, not a validator.
+    </p>
+  </section>
+
+  <!-- Right: decoded sandbox -->
+  <section class="flex flex-col gap-4">
+    <!-- Session expiry timeline -->
+    <div class="rounded-xl border border-zinc-800 bg-zinc-900/40 p-5">
+      <div class="mb-3 flex items-center justify-between">
+        <h2 class="text-sm font-semibold text-zinc-200">Session expiry timeline</h2>
+        <span data-el="badge" class="rounded-full px-2.5 py-0.5 font-mono text-xs">—</span>
+      </div>
+      <p data-el="countdown" class="font-mono text-2xl font-bold text-zinc-100">—</p>
+      <div data-el="bar-wrap" hidden class="mt-3">
+        <div class="h-1.5 overflow-hidden rounded-full bg-zinc-800">
+          <div data-el="bar" class="h-full rounded-full bg-emerald-400 transition-all"></div>
+        </div>
+      </div>
+      <dl data-el="times" class="mt-3 space-y-1 font-mono text-xs text-zinc-500"></dl>
+
+      <div class="mt-4 border-t border-zinc-800 pt-4">
+        <div class="mb-2 flex items-center justify-between text-xs">
+          <span class="font-semibold text-zinc-300">Fast-forward time</span>
+          <span data-el="sim-clock" class="font-mono text-zinc-500"></span>
+        </div>
+        <div class="flex items-center gap-3">
+          <input
+            data-el="ff-slider"
+            type="range"
+            min="0"
+            max="120"
+            value="0"
+            step="1"
+            class="h-1.5 grow cursor-pointer appearance-none rounded-full bg-zinc-800 accent-indigo-400"
+          />
+          <span data-el="ff-label" class="w-14 text-right font-mono text-xs text-indigo-300">+0m</span>
+        </div>
+        <div class="mt-3 flex gap-2">
+          <button
+            type="button"
+            data-el="skip"
+            class="rounded-md border border-zinc-700 px-3 py-1.5 text-xs font-semibold text-zinc-300 transition hover:border-red-400/50 hover:text-red-300"
+          >
+            ⏭ Skip to expiry
+          </button>
+          <button
+            type="button"
+            data-el="reset"
+            class="rounded-md border border-zinc-700 px-3 py-1.5 text-xs font-semibold text-zinc-300 transition hover:border-zinc-500 hover:text-zinc-100"
+          >
+            ↺ Reset to now
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Decoded header -->
+    <div class="rounded-xl border border-zinc-800 bg-zinc-900/40 p-5">
+      <h2 class="mb-2 flex items-center gap-2 text-sm font-semibold text-zinc-200">
+        <span class="size-2 rounded-full bg-rose-400"></span>Header
+        <span class="font-normal text-zinc-500">— algorithm &amp; type</span>
+      </h2>
+      <pre data-el="header-json" class="overflow-auto rounded-lg bg-zinc-950 px-4 py-3 font-mono text-xs leading-5 text-zinc-400">—</pre>
+    </div>
+
+    <!-- Decoded payload -->
+    <div class="rounded-xl border border-zinc-800 bg-zinc-900/40 p-5">
+      <h2 class="mb-2 flex items-center gap-2 text-sm font-semibold text-zinc-200">
+        <span class="size-2 rounded-full bg-indigo-400"></span>Payload
+        <span class="font-normal text-zinc-500">— claims</span>
+      </h2>
+      <pre data-el="payload-json" class="max-h-96 overflow-auto rounded-lg bg-zinc-950 px-4 py-3 font-mono text-xs leading-5 text-zinc-400">—</pre>
+      <p data-el="sig-note" hidden class="mt-2 font-mono text-xs text-zinc-500"></p>
+    </div>
+  </section>
+</div>
+
+<script>
+  import { escapeHtml, jsonHtml } from '../scripts/format';
+
+  const root = document.getElementById('jwt-debugger')!;
+  const el = <T extends HTMLElement>(name: string) => root.querySelector<T>(`[data-el="${name}"]`)!;
+
+  const tokenArea = el<HTMLTextAreaElement>('token');
+  const backdrop = el<HTMLDivElement>('backdrop');
+  const errorEl = el<HTMLParagraphElement>('error');
+  const headerJson = el<HTMLPreElement>('header-json');
+  const payloadJson = el<HTMLPreElement>('payload-json');
+  const sigNote = el<HTMLParagraphElement>('sig-note');
+  const badge = el<HTMLSpanElement>('badge');
+  const countdown = el<HTMLParagraphElement>('countdown');
+  const barWrap = el<HTMLDivElement>('bar-wrap');
+  const bar = el<HTMLDivElement>('bar');
+  const times = el<HTMLDListElement>('times');
+  const ffSlider = el<HTMLInputElement>('ff-slider');
+  const ffLabel = el<HTMLSpanElement>('ff-label');
+  const simClock = el<HTMLSpanElement>('sim-clock');
+  const skipBtn = el<HTMLButtonElement>('skip');
+  const resetBtn = el<HTMLButtonElement>('reset');
+
+  const SEGMENT_COLORS = ['text-rose-300', 'text-indigo-300', 'text-teal-300'];
+  const BADGE_STYLES = {
+    active: 'bg-emerald-400/15 text-emerald-300',
+    expired: 'bg-red-500/15 text-red-400',
+    none: 'bg-zinc-800 text-zinc-400',
+  };
+
+  let exp: number | null = null; // seconds since epoch
+  let iat: number | null = null;
+  let extraOffsetMs = 0; // set by "Skip to expiry"
+
+  function b64urlToUtf8(segment: string): string {
+    let s = segment.replaceAll('-', '+').replaceAll('_', '/');
+    if (s.length % 4 === 1) throw new Error('bad length');
+    s += '='.repeat((4 - (s.length % 4)) % 4);
+    const bin = atob(s); // throws on bad characters
+    return new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0)));
+  }
+
+  const utc = (seconds: number) =>
+    new Date(seconds * 1000).toISOString().replace('T', ' ').replace(/\.\d+Z$/, ' UTC');
+
+  function fmtDuration(ms: number): string {
+    const total = Math.max(0, Math.floor(ms / 1000));
+    const d = Math.floor(total / 86400);
+    const h = Math.floor((total % 86400) / 3600);
+    const m = Math.floor((total % 3600) / 60);
+    const s = total % 60;
+    const pad = (n: number) => String(n).padStart(2, '0');
+    if (d > 0) return `${d}d ${pad(h)}h ${pad(m)}m`;
+    if (h > 0) return `${h}h ${pad(m)}m ${pad(s)}s`;
+    return `${pad(m)}m:${pad(s)}s`;
+  }
+
+  const simNow = () => Date.now() + Number(ffSlider.value) * 60_000 + extraOffsetMs;
+
+  function setBadge(state: keyof typeof BADGE_STYLES, label: string) {
+    badge.className = `rounded-full px-2.5 py-0.5 font-mono text-xs ${BADGE_STYLES[state]}`;
+    badge.textContent = label;
+  }
+
+  function renderBackdrop(raw: string) {
+    const prefixMatch = raw.match(/^\s*Bearer\s+/i);
+    const prefix = prefixMatch ? prefixMatch[0] : '';
+    const rest = raw.slice(prefix.length);
+    const parts = rest.split('.');
+    let html = prefix ? `<span class="text-zinc-500">${escapeHtml(prefix)}</span>` : '';
+    html += parts
+      .map((p, i) => `<span class="${SEGMENT_COLORS[i] ?? 'text-red-400'}">${escapeHtml(p)}</span>`)
+      .join('<span class="text-zinc-600">.</span>');
+    backdrop.innerHTML = html + '\n';
+  }
+
+  function fail(message: string) {
+    errorEl.textContent = `Invalid JWT Format — ${message}`;
+    errorEl.hidden = false;
+    headerJson.textContent = '—';
+    payloadJson.textContent = '—';
+    sigNote.hidden = true;
+    exp = null;
+    iat = null;
+    setBadge('none', 'no token');
+    countdown.textContent = '—';
+    barWrap.hidden = true;
+    times.replaceChildren();
+  }
+
+  function decode() {
+    const raw = tokenArea.value;
+    renderBackdrop(raw);
+
+    // editing the token starts a fresh simulation
+    extraOffsetMs = 0;
+    ffSlider.value = '0';
+    ffLabel.textContent = '+0m';
+
+    const token = raw.replace(/^\s*Bearer\s+/i, '').trim();
+    if (token === '') {
+      fail('paste a token to decode it.');
+      errorEl.hidden = true; // empty box is a neutral state, not an error
+      return;
+    }
+
+    const segments = token.split('.');
+    if (segments.length !== 3) {
+      fail(`expected 3 dot-separated segments, found ${segments.length}.`);
+      return;
+    }
+
+    let header: unknown;
+    let payload: unknown;
+    try {
+      header = JSON.parse(b64urlToUtf8(segments[0]));
+    } catch {
+      fail('the header segment is not valid Base64URL-encoded JSON.');
+      return;
+    }
+    try {
+      payload = JSON.parse(b64urlToUtf8(segments[1]));
+    } catch {
+      fail('the payload segment is not valid Base64URL-encoded JSON.');
+      return;
+    }
+
+    errorEl.hidden = true;
+    headerJson.innerHTML = jsonHtml(header);
+    payloadJson.innerHTML = jsonHtml(payload);
+    sigNote.hidden = segments[2] !== '';
+    sigNote.textContent = 'signature segment is empty — this is an unsigned (alg "none") token.';
+
+    const claims = (typeof payload === 'object' && payload !== null ? payload : {}) as Record<string, unknown>;
+    exp = typeof claims.exp === 'number' ? claims.exp : null;
+    iat = typeof claims.iat === 'number' ? claims.iat : null;
+
+    const rows: [string, string][] = [];
+    if (iat !== null) rows.push(['iat', `issued  ${utc(iat)}`]);
+    if (typeof claims.nbf === 'number') rows.push(['nbf', `not before  ${utc(claims.nbf)}`]);
+    if (exp !== null) rows.push(['exp', `expires  ${utc(exp)}`]);
+    times.replaceChildren(
+      ...rows.map(([k, v]) => {
+        const div = document.createElement('div');
+        div.innerHTML = `<span class="text-zinc-400">${k}</span> · ${escapeHtml(v)}`;
+        return div;
+      })
+    );
+
+    updateTimeline();
+  }
+
+  function updateTimeline() {
+    const now = simNow();
+    const offsetMs = now - Date.now();
+    simClock.textContent =
+      new Date(now).toLocaleString() + (offsetMs > 500 ? ` (+${fmtDuration(offsetMs)})` : '');
+
+    if (exp === null) {
+      setBadge('none', 'no exp claim');
+      countdown.textContent = '—';
+      barWrap.hidden = true;
+      return;
+    }
+
+    const expMs = exp * 1000;
+    if (now < expMs) {
+      setBadge('active', '● Active');
+      countdown.textContent = `Expires in ${fmtDuration(expMs - now)}`;
+      countdown.classList.remove('text-red-400');
+    } else {
+      setBadge('expired', '● Expired');
+      countdown.textContent = `Expired ${fmtDuration(now - expMs)} ago`;
+      countdown.classList.add('text-red-400');
+    }
+
+    if (iat !== null && expMs > iat * 1000) {
+      barWrap.hidden = false;
+      const pct = Math.min(100, Math.max(0, ((now - iat * 1000) / (expMs - iat * 1000)) * 100));
+      bar.style.width = `${pct}%`;
+      bar.classList.toggle('bg-emerald-400', now < expMs);
+      bar.classList.toggle('bg-red-400', now >= expMs);
+    } else {
+      barWrap.hidden = true;
+    }
+  }
+
+  tokenArea.addEventListener('input', decode);
+  tokenArea.addEventListener('scroll', () => {
+    backdrop.scrollTop = tokenArea.scrollTop;
+    backdrop.scrollLeft = tokenArea.scrollLeft;
+  });
+  ffSlider.addEventListener('input', () => {
+    ffLabel.textContent = `+${ffSlider.value}m`;
+    updateTimeline();
+  });
+  skipBtn.addEventListener('click', () => {
+    if (exp === null) return;
+    extraOffsetMs = exp * 1000 - Date.now() - Number(ffSlider.value) * 60_000 + 1000;
+    if (extraOffsetMs < 0) extraOffsetMs = 0; // already past expiry — nothing to skip
+    updateTimeline();
+  });
+  resetBtn.addEventListener('click', () => {
+    extraOffsetMs = 0;
+    ffSlider.value = '0';
+    ffLabel.textContent = '+0m';
+    updateTimeline();
+  });
+
+  setInterval(updateTimeline, 1000);
+  decode();
+</script>
