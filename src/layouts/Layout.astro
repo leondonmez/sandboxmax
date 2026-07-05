@@ -6,9 +6,11 @@ interface Props {
   description: string;
   /** when set, the page is a tool and emits SoftwareApplication JSON-LD */
   toolName?: string;
+  /** error/utility pages: keep bots out of the index but still following links */
+  noindex?: boolean;
 }
 
-const { title, description, toolName } = Astro.props;
+const { title, description, toolName, noindex = false } = Astro.props;
 
 const schema = toolName
   ? {
@@ -44,7 +46,7 @@ const schema = toolName
     <title>{title}</title>
     <meta name="description" content={description} />
     <link rel="canonical" href={new URL(Astro.url.pathname, Astro.site)} />
-    <meta name="robots" content="index, follow" />
+    <meta name="robots" content={noindex ? 'noindex, follow' : 'index, follow'} />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:type" content="website" />

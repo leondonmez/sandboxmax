@@ -1,0 +1,57 @@
+---
+import Layout from '../layouts/Layout.astro';
+import SiteHeader from '../components/SiteHeader.astro';
+import SiteFooter from '../components/SiteFooter.astro';
+import { tools } from '../data/tools';
+
+const liveTools = tools.filter((t) => t.status === 'live').slice(0, 6);
+---
+
+<Layout
+  title="404 — Route Not Found | SandboxMax"
+  description="That route doesn't exist — but the tools do. Jump back into SandboxMax's free client-side developer utilities."
+  noindex
+>
+  <SiteHeader />
+
+  <main class="mx-auto flex max-w-6xl flex-col px-4 py-16 sm:px-6">
+    <div class="mx-auto max-w-2xl text-center">
+      <p class="font-mono text-sm text-zinc-500">$ curl sandboxmax.com{'{path}'}</p>
+      <h1 class="mt-4 font-mono text-7xl font-extrabold tracking-tight text-zinc-50">
+        4<span class="text-emerald-400">0</span>4
+      </h1>
+      <p class="mt-3 text-lg font-semibold text-zinc-200">Route not found.</p>
+      <p class="mt-2 text-zinc-400">
+        No server received this request — there isn&rsquo;t one. This page simply doesn&rsquo;t exist in the build.
+        The tools below very much do.
+      </p>
+      <a
+        href="/"
+        class="mt-6 inline-block rounded-lg border border-emerald-400/40 bg-emerald-400/10 px-5 py-2.5 text-sm font-bold text-emerald-300 transition hover:border-emerald-400/70 hover:bg-emerald-400/20"
+      >
+        ← Back to the workshop
+      </a>
+    </div>
+
+    <section class="mx-auto mt-14 w-full max-w-3xl">
+      <h2 class="mb-4 text-center text-sm font-semibold text-zinc-400">Popular tools</h2>
+      <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {
+          liveTools.map((tool) => (
+            <a
+              href={`/${tool.slug}`}
+              class="group rounded-xl border border-zinc-800 bg-zinc-900/40 p-4 transition hover:border-indigo-400/40 hover:bg-zinc-900"
+            >
+              <span class="font-mono text-[11px] text-zinc-500">/{tool.slug}</span>
+              <span class="mt-0.5 block text-sm font-semibold text-zinc-100 group-hover:text-indigo-300">
+                {tool.name}
+              </span>
+            </a>
+          ))
+        }
+      </div>
+    </section>
+  </main>
+
+  <SiteFooter />
+</Layout>
