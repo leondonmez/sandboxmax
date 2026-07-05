@@ -24,7 +24,7 @@ const { defaultCsv } = Astro.props;
         <span aria-hidden="true">⇪</span>
         drag &amp; drop a <span class="font-mono text-zinc-400">.csv</span> file here, or
         <span class="font-semibold text-indigo-300">browse</span>
-        <input data-el="file" type="file" accept=".csv,.txt,text/csv,text/plain" class="hidden" />
+        <input data-el="file" type="file" accept=".csv,.txt,text/csv,text/plain" class="hidden" aria-label="Choose a CSV file to convert" />
       </div>
       <p data-el="error" hidden class="mt-2 rounded-md bg-red-500/10 px-3 py-2 font-mono text-xs text-red-400"></p>
     </div>

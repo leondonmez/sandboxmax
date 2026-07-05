@@ -1,0 +1,292 @@
+---
+interface Props {
+  defaultDirection: 'encode' | 'decode';
+  defaultInput: string;
+}
+
+const { defaultDirection, defaultInput } = Astro.props;
+---
+
+<div id="url-encoder" data-direction={defaultDirection} class="grid gap-5 lg:grid-cols-2">
+  <!-- Left: workspace input -->
+  <section class="flex flex-col gap-3 rounded-xl border border-zinc-800 bg-zinc-900/40 p-5">
+    <label for="url-input" class="text-sm font-semibold text-zinc-200">Raw URL or text</label>
+    <textarea
+      id="url-input"
+      data-el="input"
+      spellcheck="false"
+      autocomplete="off"
+      class="h-56 w-full grow resize-y rounded-lg border border-zinc-700 bg-zinc-950 px-4 py-3 font-mono text-sm leading-6 break-all text-zinc-200 caret-indigo-300 transition outline-none focus:border-indigo-400/60"
+    >{defaultInput}</textarea>
+    <div class="flex flex-wrap gap-2">
+      <button
+        type="button"
+        data-el="btn-encode"
+        class="rounded-md border border-emerald-400/40 bg-emerald-400/10 px-3 py-1.5 text-xs font-semibold text-emerald-300 transition hover:border-emerald-400/70 hover:bg-emerald-400/20"
+      >
+        ⚡ Encode Component
+      </button>
+      <button
+        type="button"
+        data-el="btn-decode"
+        class="rounded-md border border-indigo-400/40 bg-indigo-500/10 px-3 py-1.5 text-xs font-semibold text-indigo-300 transition hover:border-indigo-400/70 hover:bg-indigo-500/20"
+      >
+        ⚡ Decode Component
+      </button>
+      <button
+        type="button"
+        data-el="btn-clear"
+        class="rounded-md border border-zinc-700 px-3 py-1.5 text-xs font-semibold text-zinc-300 transition hover:border-zinc-500 hover:text-zinc-100"
+      >
+        Clear Content
+      </button>
+    </div>
+    <p data-el="note" hidden class="rounded-md bg-amber-500/10 px-3 py-2 font-mono text-xs text-amber-300"></p>
+    <p class="text-xs text-zinc-500">
+      The last action re-runs live as you type. Everything uses your browser&rsquo;s native
+      <code class="font-mono">encodeURIComponent</code> / <code class="font-mono">URLSearchParams</code> — URLs you
+      paste are never requested or transmitted.
+    </p>
+  </section>
+
+  <!-- Right: output & smart parameter grid -->
+  <section class="flex flex-col gap-3 rounded-xl border border-zinc-800 bg-zinc-900/40 p-5">
+    <div class="flex items-center justify-between">
+      <label for="url-output" class="text-sm font-semibold text-zinc-200">Result</label>
+      <span class="flex items-center gap-2">
+        <span data-el="direction-chip" class="rounded-full bg-zinc-800 px-2 py-0.5 font-mono text-[10px] text-zinc-400"></span>
+        <button
+          type="button"
+          data-el="copy-output"
+          class="rounded-md border border-zinc-700 px-2.5 py-1 font-mono text-xs text-zinc-400 transition hover:border-zinc-500 hover:text-zinc-100"
+        >
+          copy
+        </button>
+      </span>
+    </div>
+    <textarea
+      id="url-output"
+      data-el="output"
+      readonly
+      spellcheck="false"
+      class="h-40 w-full resize-y rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-3 font-mono text-sm leading-6 break-all text-emerald-300/90 outline-none"
+    ></textarea>
+
+    <div class="flex flex-wrap gap-2">
+      <span class="rounded-full bg-zinc-800 px-2.5 py-1 font-mono text-[11px] text-zinc-400">
+        base domain: <span data-el="stat-domain" class="font-bold text-zinc-100">—</span>
+      </span>
+      <span class="rounded-full bg-zinc-800 px-2.5 py-1 font-mono text-[11px] text-zinc-400">
+        parameters: <span data-el="stat-params" class="font-bold text-zinc-100">—</span>
+      </span>
+    </div>
+
+    <div data-el="grid-wrap" hidden class="rounded-lg border border-zinc-800 bg-zinc-950">
+      <div class="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-800 px-4 py-2.5">
+        <p class="font-mono text-xs text-zinc-500">smart parameter grid</p>
+        <span class="flex gap-1.5">
+          <button
+            type="button"
+            data-el="copy-clean"
+            class="rounded-md border border-emerald-400/40 px-2 py-0.5 font-mono text-[11px] text-emerald-300 transition hover:bg-emerald-400/10"
+          >
+            copy clean URL
+          </button>
+          <button
+            type="button"
+            data-el="copy-json"
+            class="rounded-md border border-zinc-700 px-2 py-0.5 font-mono text-[11px] text-zinc-400 transition hover:border-zinc-500 hover:text-zinc-100"
+          >
+            copy JSON
+          </button>
+        </span>
+      </div>
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-zinc-800 font-mono text-[11px] text-zinc-500">
+            <th class="px-4 py-2 text-left font-normal">key</th>
+            <th class="px-4 py-2 text-left font-normal">decoded value</th>
+          </tr>
+        </thead>
+        <tbody data-el="grid-body" class="divide-y divide-zinc-800/60"></tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+<script>
+  const root = document.getElementById('url-encoder')!;
+  const el = <T extends HTMLElement>(name: string) => root.querySelector<T>(`[data-el="${name}"]`)!;
+
+  const input = el<HTMLTextAreaElement>('input');
+  const output = el<HTMLTextAreaElement>('output');
+  const noteEl = el<HTMLParagraphElement>('note');
+  const directionChip = el<HTMLSpanElement>('direction-chip');
+  const statDomain = el<HTMLSpanElement>('stat-domain');
+  const statParams = el<HTMLSpanElement>('stat-params');
+  const gridWrap = el<HTMLDivElement>('grid-wrap');
+  const gridBody = el<HTMLTableSectionElement>('grid-body');
+
+  let lastAction: 'encode' | 'decode' = (root.dataset.direction ?? 'encode') as 'encode' | 'decode';
+  let currentUrl: URL | null = null;
+
+  // known cross-site tracking tokens; deliberately NOT plain `ref`-style params,
+  // which often carry app meaning — only strip what is unambiguously tracking
+  const TRACKING = (key: string) =>
+    /^utm_/i.test(key) ||
+    ['gclid', 'gclsrc', 'dclid', 'fbclid', 'msclkid', 'yclid', 'twclid', 'ttclid', 'igshid', 'mc_cid', 'mc_eid', '_hsenc', '_hsmi', 'vero_id', 'oly_enc_id', 'wickedid', 's_cid'].includes(
+      key.toLowerCase()
+    );
+
+  // --- Encode / decode ---------------------------------------------------------
+
+  /** decodeURIComponent throws on malformed %-sequences; decode what's valid,
+      leave broken sequences untouched, and say so. */
+  function lenientDecode(s: string): { text: string; clean: boolean } {
+    try {
+      return { text: decodeURIComponent(s), clean: true };
+    } catch {
+      const text = s.replace(/%[0-9A-Fa-f]{2}/g, (m) => {
+        try {
+          return decodeURIComponent(m);
+        } catch {
+          return m;
+        }
+      });
+      return { text, clean: false };
+    }
+  }
+
+  function run() {
+    noteEl.hidden = true;
+    if (lastAction === 'encode') {
+      output.value = encodeURIComponent(input.value);
+      directionChip.textContent = 'encoded';
+    } else {
+      const { text, clean } = lenientDecode(input.value);
+      output.value = text;
+      directionChip.textContent = 'decoded';
+      if (!clean) {
+        noteEl.textContent =
+          'input contains malformed percent-sequences — valid ones were decoded, broken ones left as-is.';
+        noteEl.hidden = false;
+      }
+    }
+  }
+
+  // --- Smart parameter grid ------------------------------------------------------
+
+  function parseUrl(raw: string): URL | null {
+    const t = raw.trim();
+    if (t === '' || /\s/.test(t)) return null;
+    try {
+      return new URL(t);
+    } catch {
+      /* try again with a scheme */
+    }
+    if (/^[\w-]+(\.[\w-]+)+/.test(t)) {
+      try {
+        return new URL('https://' + t);
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  }
+
+  function renderGrid() {
+    currentUrl = parseUrl(input.value);
+    const params = currentUrl ? [...currentUrl.searchParams.entries()] : [];
+
+    statDomain.textContent = currentUrl?.hostname ?? '—';
+    statParams.textContent = currentUrl ? String(params.length) : '—';
+
+    if (!currentUrl || params.length === 0) {
+      gridWrap.hidden = true;
+      return;
+    }
+    gridWrap.hidden = false;
+    gridBody.replaceChildren(
+      ...params.map(([key, value]) => {
+        const tr = document.createElement('tr');
+        const keyTd = document.createElement('td');
+        keyTd.className = 'px-4 py-2 align-top font-mono text-xs text-sky-300';
+        keyTd.textContent = key;
+        if (TRACKING(key)) {
+          const chip = document.createElement('span');
+          chip.className = 'ml-2 rounded-full bg-amber-500/15 px-1.5 py-0.5 font-mono text-[10px] text-amber-300';
+          chip.textContent = 'tracking';
+          keyTd.append(chip);
+        }
+        const valueTd = document.createElement('td');
+        valueTd.className = 'px-4 py-2 align-top font-mono text-xs break-all text-zinc-300';
+        valueTd.textContent = value === '' ? '(empty)' : value; // URLSearchParams already decoded it
+        tr.append(keyTd, valueTd);
+        return tr;
+      })
+    );
+  }
+
+  function cleanUrl(): string {
+    if (!currentUrl) return '';
+    const url = new URL(currentUrl.href);
+    for (const key of [...url.searchParams.keys()]) {
+      if (TRACKING(key)) url.searchParams.delete(key);
+    }
+    if ([...url.searchParams.keys()].length === 0) url.search = '';
+    return url.href;
+  }
+
+  function paramsJson(): string {
+    if (!currentUrl) return '{}';
+    const obj: Record<string, string | string[]> = {};
+    for (const key of new Set(currentUrl.searchParams.keys())) {
+      const all = currentUrl.searchParams.getAll(key);
+      obj[key] = all.length === 1 ? all[0] : all;
+    }
+    return JSON.stringify(obj, null, 2);
+  }
+
+  // --- Wiring ----------------------------------------------------------------------
+
+  const bindCopy = (name: string, getText: () => string) => {
+    const btn = el<HTMLButtonElement>(name);
+    const label = btn.textContent;
+    btn.addEventListener('click', async () => {
+      await navigator.clipboard.writeText(getText());
+      btn.textContent = '✓ copied';
+      setTimeout(() => (btn.textContent = label), 1200);
+    });
+  };
+  bindCopy('copy-output', () => output.value);
+  bindCopy('copy-clean', cleanUrl);
+  bindCopy('copy-json', paramsJson);
+
+  el<HTMLButtonElement>('btn-encode').addEventListener('click', () => {
+    lastAction = 'encode';
+    run();
+  });
+  el<HTMLButtonElement>('btn-decode').addEventListener('click', () => {
+    lastAction = 'decode';
+    run();
+  });
+  el<HTMLButtonElement>('btn-clear').addEventListener('click', () => {
+    input.value = '';
+    output.value = '';
+    noteEl.hidden = true;
+    renderGrid();
+    input.focus();
+  });
+
+  let debounceTimer: ReturnType<typeof setTimeout>;
+  input.addEventListener('input', () => {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      run();
+      renderGrid();
+    }, 120);
+  });
+
+  run();
+  renderGrid();
+</script>

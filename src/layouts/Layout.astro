@@ -4,9 +4,35 @@ import '../styles/global.css';
 interface Props {
   title: string;
   description: string;
+  /** when set, the page is a tool and emits SoftwareApplication JSON-LD */
+  toolName?: string;
 }
 
-const { title, description } = Astro.props;
+const { title, description, toolName } = Astro.props;
+
+const schema = toolName
+  ? {
+      '@context': 'https://schema.org',
+      '@type': 'SoftwareApplication',
+      name: toolName,
+      description,
+      url: new URL(Astro.url.pathname, Astro.site).href,
+      operatingSystem: 'All',
+      applicationCategory: 'DeveloperApplication',
+      browserRequirements: 'Requires JavaScript. Runs 100% client-side inside the browser thread.',
+      offers: {
+        '@type': 'Offer',
+        price: '0',
+        priceCurrency: 'USD',
+      },
+    }
+  : {
+      '@context': 'https://schema.org',
+      '@type': 'WebSite',
+      name: 'SandboxMax',
+      description,
+      url: Astro.site?.href,
+    };
 ---
 
 <html lang="en" class="scheme-dark">
@@ -18,9 +44,11 @@ const { title, description } = Astro.props;
     <title>{title}</title>
     <meta name="description" content={description} />
     <link rel="canonical" href={new URL(Astro.url.pathname, Astro.site)} />
+    <meta name="robots" content="index, follow" />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:type" content="website" />
+    <script type="application/ld+json" set:html={JSON.stringify(schema)} />
   </head>
   <body class="min-h-screen bg-zinc-950 text-zinc-300 antialiased selection:bg-emerald-400/30">
     <slot />

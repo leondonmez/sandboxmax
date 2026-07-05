@@ -16,7 +16,7 @@ const { tool } = Astro.props;
 const related = jwtTools.filter((t) => t.slug !== tool.slug);
 ---
 
-<Layout title={tool.metaTitle} description={tool.metaDescription}>
+<Layout title={tool.metaTitle} description={tool.metaDescription} toolName={tool.toolTitle}>
   <SiteHeader />
 
   <main class="mx-auto max-w-6xl px-4 py-10 sm:px-6">

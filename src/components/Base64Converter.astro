@@ -43,7 +43,7 @@ const { defaultMode, defaultDirection, defaultInput } = Astro.props;
         <span class="text-2xl" aria-hidden="true">⇪</span>
         <span>drag &amp; drop an image or small file here</span>
         <span>or <span class="font-semibold text-indigo-300">browse</span> — max 2 MB</span>
-        <input data-el="file" type="file" class="hidden" />
+        <input data-el="file" type="file" class="hidden" aria-label="Choose a file to encode" />
       </div>
       <p data-el="file-info" hidden class="font-mono text-xs text-zinc-500"></p>
       <p data-el="error" hidden class="rounded-md bg-red-500/10 px-3 py-2 font-mono text-xs text-red-400"></p>

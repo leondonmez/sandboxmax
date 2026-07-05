@@ -1,0 +1,264 @@
+---
+interface Props {
+  featured: string;
+  defaultInput: string;
+}
+
+const { featured, defaultInput } = Astro.props;
+
+const algoRows = [
+  { algo: 'SHA-256', chip: 'modern standard', chipClass: 'bg-emerald-400/15 text-emerald-300' },
+  { algo: 'SHA-512', chip: 'maximum strength', chipClass: 'bg-indigo-500/15 text-indigo-300' },
+  { algo: 'SHA-1', chip: 'broken for security — fingerprints only', chipClass: 'bg-amber-500/15 text-amber-300' },
+  { algo: 'MD5', chip: 'broken for security — checksums only', chipClass: 'bg-amber-500/15 text-amber-300' },
+];
+// the page's featured algorithm leads the grid
+const orderedRows = [...algoRows].sort((a, b) => (a.algo === featured ? -1 : b.algo === featured ? 1 : 0));
+---
+
+<div id="hash-generator" class="grid gap-5 lg:grid-cols-2">
+  <!-- Left: input & format -->
+  <section class="flex flex-col gap-4 rounded-xl border border-zinc-800 bg-zinc-900/40 p-5">
+    <div class="flex flex-col gap-2">
+      <label for="hash-input" class="text-sm font-semibold text-zinc-200">Input text</label>
+      <textarea
+        id="hash-input"
+        data-el="input"
+        spellcheck="false"
+        class="h-64 w-full grow resize-y rounded-lg border border-zinc-700 bg-zinc-950 px-4 py-3 font-mono text-sm leading-6 text-zinc-200 caret-indigo-300 transition outline-none focus:border-indigo-400/60"
+      >{defaultInput}</textarea>
+    </div>
+
+    <div>
+      <p class="mb-2 text-sm font-semibold text-zinc-200">Output format</p>
+      <div class="flex w-fit rounded-lg border border-zinc-700 p-0.5 font-mono text-xs">
+        <button type="button" data-format="hex" class="rounded-md px-3 py-1.5 transition">hex (a–f)</button>
+        <button type="button" data-format="HEX" class="rounded-md px-3 py-1.5 transition">HEX (A–F)</button>
+        <button type="button" data-format="base64" class="rounded-md px-3 py-1.5 transition">base64</button>
+      </div>
+    </div>
+
+    <p data-el="error" hidden class="rounded-md bg-red-500/10 px-3 py-2 font-mono text-xs text-red-400"></p>
+
+    <p class="mt-auto text-xs text-zinc-500">
+      SHA digests run on your browser&rsquo;s native <code class="font-mono">crypto.subtle</code> engine; MD5 uses a
+      built-in RFC 1321 implementation (SubtleCrypto refuses MD5 on principle — see the row label). Input is hashed
+      as UTF-8 bytes and never transmitted.
+    </p>
+  </section>
+
+  <!-- Right: live hash grid -->
+  <section class="flex flex-col gap-3">
+    {
+      orderedRows.map(({ algo, chip, chipClass }) => (
+        <div
+          class:list={[
+            'rounded-xl border bg-zinc-900/40 p-4',
+            algo === featured ? 'border-indigo-400/40' : 'border-zinc-800',
+          ]}
+        >
+          <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <span class="flex items-center gap-2">
+              <span class="font-mono text-sm font-bold text-zinc-100">{algo}</span>
+              <span class:list={['rounded-full px-2 py-0.5 font-mono text-[10px]', chipClass]}>{chip}</span>
+              {algo === featured && (
+                <span class="rounded-full bg-indigo-500/15 px-2 py-0.5 font-mono text-[10px] text-indigo-300">
+                  this page&rsquo;s focus
+                </span>
+              )}
+            </span>
+            <span class="flex items-center gap-2">
+              <span data-time={algo} class="font-mono text-[10px] text-emerald-300/80" />
+              <button
+                type="button"
+                data-copy={algo}
+                class="rounded-md border border-zinc-700 px-2 py-0.5 font-mono text-[11px] text-zinc-400 transition hover:border-zinc-500 hover:text-zinc-100"
+              >
+                copy
+              </button>
+            </span>
+          </div>
+          <code
+            data-hash={algo}
+            class="block overflow-x-auto rounded-lg bg-zinc-950 px-3 py-2.5 font-mono text-xs leading-5 break-all whitespace-pre-wrap text-emerald-300/90"
+          >
+            —
+          </code>
+        </div>
+      ))
+    }
+  </section>
+</div>
+
+<script>
+  const root = document.getElementById('hash-generator')!;
+
+  const input = root.querySelector<HTMLTextAreaElement>('[data-el="input"]')!;
+  const errorEl = root.querySelector<HTMLParagraphElement>('[data-el="error"]')!;
+  const formatBtns = [...root.querySelectorAll<HTMLButtonElement>('[data-format]')];
+  const hashEls = new Map([...root.querySelectorAll<HTMLElement>('[data-hash]')].map((e) => [e.dataset.hash!, e]));
+  const timeEls = new Map([...root.querySelectorAll<HTMLElement>('[data-time]')].map((e) => [e.dataset.time!, e]));
+
+  type Format = 'hex' | 'HEX' | 'base64';
+  const ALGOS = ['SHA-256', 'SHA-512', 'SHA-1', 'MD5'] as const;
+
+  let format: Format = 'hex';
+  const digests = new Map<string, Uint8Array>(); // cached bytes — format toggles never recompute
+  const times = new Map<string, number>();
+
+  // --- MD5 (RFC 1321) — SubtleCrypto won't implement it, so we do, honestly labeled ---
+
+  const MD5_S = [
+    7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22,
+    5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20,
+    4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23,
+    6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21,
+  ];
+  const MD5_K = Uint32Array.from({ length: 64 }, (_, i) => Math.floor(Math.abs(Math.sin(i + 1)) * 2 ** 32));
+
+  function md5(bytes: Uint8Array): Uint8Array {
+    const bitLen = bytes.length * 8;
+    const paddedLen = (((bytes.length + 8) >> 6) + 1) << 6;
+    const buf = new Uint8Array(paddedLen);
+    buf.set(bytes);
+    buf[bytes.length] = 0x80;
+    const view = new DataView(buf.buffer);
+    view.setUint32(paddedLen - 8, bitLen >>> 0, true);
+    view.setUint32(paddedLen - 4, Math.floor(bitLen / 2 ** 32), true);
+
+    let a0 = 0x67452301;
+    let b0 = 0xefcdab89;
+    let c0 = 0x98badcfe;
+    let d0 = 0x10325476;
+
+    const M = new Uint32Array(16);
+    for (let off = 0; off < paddedLen; off += 64) {
+      for (let j = 0; j < 16; j++) M[j] = view.getUint32(off + j * 4, true);
+      let A = a0;
+      let B = b0;
+      let C = c0;
+      let D = d0;
+      for (let i = 0; i < 64; i++) {
+        let F: number;
+        let g: number;
+        if (i < 16) {
+          F = (B & C) | (~B & D);
+          g = i;
+        } else if (i < 32) {
+          F = (D & B) | (~D & C);
+          g = (5 * i + 1) % 16;
+        } else if (i < 48) {
+          F = B ^ C ^ D;
+          g = (3 * i + 5) % 16;
+        } else {
+          F = C ^ (B | ~D);
+          g = (7 * i) % 16;
+        }
+        const sum = (F + A + MD5_K[i] + M[g]) >>> 0;
+        A = D;
+        D = C;
+        C = B;
+        B = (B + ((sum << MD5_S[i]) | (sum >>> (32 - MD5_S[i])))) >>> 0;
+      }
+      a0 = (a0 + A) >>> 0;
+      b0 = (b0 + B) >>> 0;
+      c0 = (c0 + C) >>> 0;
+      d0 = (d0 + D) >>> 0;
+    }
+
+    const out = new Uint8Array(16);
+    const outView = new DataView(out.buffer);
+    outView.setUint32(0, a0, true);
+    outView.setUint32(4, b0, true);
+    outView.setUint32(8, c0, true);
+    outView.setUint32(12, d0, true);
+    return out;
+  }
+
+  // --- Formatting -------------------------------------------------------------
+
+  const toHex = (bytes: Uint8Array) => Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+  const toBase64 = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes));
+
+  const formatDigest = (bytes: Uint8Array) =>
+    format === 'base64' ? toBase64(bytes) : format === 'HEX' ? toHex(bytes).toUpperCase() : toHex(bytes);
+
+  const formatTime = (ms: number) => (ms < 0.1 ? `computed in ${Math.max(1, Math.round(ms * 1000))} µs` : `computed in ${ms.toFixed(2)} ms`);
+
+  // --- Compute & render ---------------------------------------------------------
+
+  let computeToken = 0; // discard stale async results when typing fast
+
+  async function compute() {
+    const token = ++computeToken;
+    const bytes = new TextEncoder().encode(input.value);
+    errorEl.hidden = true;
+
+    try {
+      const md5Start = performance.now();
+      const md5Digest = md5(bytes);
+      const md5Time = performance.now() - md5Start;
+
+      const shaResults = await Promise.all(
+        (['SHA-256', 'SHA-512', 'SHA-1'] as const).map(async (algo) => {
+          const start = performance.now();
+          const digest = new Uint8Array(await crypto.subtle.digest(algo, bytes));
+          return { algo, digest, time: performance.now() - start };
+        })
+      );
+
+      if (token !== computeToken) return; // a newer keystroke superseded this run
+      digests.set('MD5', md5Digest);
+      times.set('MD5', md5Time);
+      for (const { algo, digest, time } of shaResults) {
+        digests.set(algo, digest);
+        times.set(algo, time);
+      }
+      render();
+    } catch {
+      errorEl.textContent =
+        'Web Crypto is unavailable — crypto.subtle requires a secure context (HTTPS or localhost).';
+      errorEl.hidden = false;
+    }
+  }
+
+  function render() {
+    for (const algo of ALGOS) {
+      const digest = digests.get(algo);
+      if (!digest) continue;
+      hashEls.get(algo)!.textContent = formatDigest(digest);
+      timeEls.get(algo)!.textContent = formatTime(times.get(algo) ?? 0);
+    }
+  }
+
+  function setFormat(next: Format) {
+    format = next;
+    const ACTIVE = 'bg-indigo-500/20 text-indigo-300';
+    const IDLE = 'text-zinc-500 hover:text-zinc-300';
+    formatBtns.forEach((b) => {
+      b.className = `rounded-md px-3 py-1.5 transition ${b.dataset.format === format ? ACTIVE : IDLE}`;
+    });
+    render(); // pure re-format of cached digest bytes
+  }
+
+  // --- Wiring ---------------------------------------------------------------------
+
+  let debounceTimer: ReturnType<typeof setTimeout>;
+  input.addEventListener('input', () => {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(compute, 80);
+  });
+  formatBtns.forEach((b) => b.addEventListener('click', () => setFormat(b.dataset.format as Format)));
+  root.querySelectorAll<HTMLButtonElement>('[data-copy]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const digest = digests.get(btn.dataset.copy!);
+      if (!digest) return;
+      await navigator.clipboard.writeText(formatDigest(digest));
+      btn.textContent = 'copied!';
+      setTimeout(() => (btn.textContent = 'copy'), 1200);
+    });
+  });
+
+  setFormat('hex');
+  compute();
+</script>

@@ -1,0 +1,349 @@
+---
+interface Props {
+  defaultEpoch: string;
+}
+
+const { defaultEpoch } = Astro.props;
+
+const matrixZones = [
+  ['UTC', 'UTC'],
+  ['America/New_York', 'New York'],
+  ['America/Los_Angeles', 'Los Angeles'],
+  ['Europe/London', 'London'],
+  ['Europe/Berlin', 'Berlin'],
+  ['Asia/Tokyo', 'Tokyo'],
+];
+
+const extraZones = [
+  ['America/Chicago', 'Chicago'],
+  ['America/Denver', 'Denver'],
+  ['America/Sao_Paulo', 'São Paulo'],
+  ['Europe/Paris', 'Paris'],
+  ['Europe/Madrid', 'Madrid'],
+  ['Europe/Kyiv', 'Kyiv'],
+  ['Asia/Dubai', 'Dubai'],
+  ['Asia/Kolkata', 'Mumbai / Kolkata'],
+  ['Asia/Singapore', 'Singapore'],
+  ['Asia/Shanghai', 'Shanghai'],
+  ['Asia/Seoul', 'Seoul'],
+  ['Australia/Sydney', 'Sydney'],
+  ['Pacific/Auckland', 'Auckland'],
+];
+---
+
+<div id="timestamp-converter" data-epoch={defaultEpoch} class="flex flex-col gap-4">
+  <!-- Live clock ticker banner -->
+  <section class="flex flex-wrap items-center gap-x-8 gap-y-3 rounded-xl border border-zinc-800 bg-zinc-900/40 px-5 py-4">
+    <p class="font-mono text-xs text-zinc-500">current unix time <span class="text-emerald-400">● live</span></p>
+    <div class="flex items-center gap-2">
+      <span data-el="ticker-s" class="font-mono text-xl font-bold text-zinc-100">—</span>
+      <span class="font-mono text-[10px] text-zinc-500">sec</span>
+      <button type="button" data-el="copy-s" class="rounded-md border border-zinc-700 px-2 py-0.5 font-mono text-[11px] text-zinc-400 transition hover:border-zinc-500 hover:text-zinc-100">copy</button>
+    </div>
+    <div class="flex items-center gap-2">
+      <span data-el="ticker-ms" class="font-mono text-xl font-bold text-zinc-100">—</span>
+      <span class="font-mono text-[10px] text-zinc-500">ms</span>
+      <button type="button" data-el="copy-ms" class="rounded-md border border-zinc-700 px-2 py-0.5 font-mono text-[11px] text-zinc-400 transition hover:border-zinc-500 hover:text-zinc-100">copy</button>
+    </div>
+  </section>
+
+  <div class="grid gap-5 lg:grid-cols-2">
+    <!-- Left: input / generation -->
+    <section class="flex flex-col gap-4 rounded-xl border border-zinc-800 bg-zinc-900/40 p-5">
+      <div class="flex w-fit rounded-lg border border-zinc-700 p-0.5 font-mono text-xs">
+        <button type="button" data-el="mode-epoch" class="rounded-md px-3 py-1.5 transition">Epoch → Human</button>
+        <button type="button" data-el="mode-human" class="rounded-md px-3 py-1.5 transition">Human → Epoch</button>
+      </div>
+
+      <div data-el="epoch-wrap" class="flex flex-col gap-2">
+        <label for="ts-epoch" class="flex items-center justify-between text-sm font-semibold text-zinc-200">
+          Epoch timestamp
+          <span data-el="unit" class="rounded-full bg-indigo-500/15 px-2 py-0.5 font-mono text-[10px] text-indigo-300"></span>
+        </label>
+        <input
+          id="ts-epoch"
+          data-el="epoch"
+          type="text"
+          inputmode="numeric"
+          spellcheck="false"
+          autocomplete="off"
+          class="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-4 py-3 text-center font-mono text-lg tracking-wider text-indigo-300 transition outline-none focus:border-indigo-400/60"
+        />
+        <p data-el="error" hidden class="rounded-md bg-red-500/10 px-3 py-2 font-mono text-xs text-red-400"></p>
+        <p class="text-xs text-zinc-500">Seconds or milliseconds — the unit is detected automatically from the value's magnitude.</p>
+      </div>
+
+      <div data-el="human-wrap" hidden class="flex flex-col gap-3">
+        <label for="ts-dtl" class="text-sm font-semibold text-zinc-200">Pick date &amp; time <span class="font-normal text-zinc-500">(your local zone)</span></label>
+        <input
+          id="ts-dtl"
+          data-el="dtl"
+          type="datetime-local"
+          step="1"
+          class="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-4 py-3 font-mono text-sm text-zinc-200 [color-scheme:dark] transition outline-none focus:border-indigo-400/60"
+        />
+        <div class="flex flex-col gap-2">
+          {
+            [
+              ['out-s', 'copy-out-s', 'epoch seconds'],
+              ['out-ms', 'copy-out-ms', 'epoch milliseconds'],
+            ].map(([out, copy, label]) => (
+              <div class="flex items-center justify-between gap-3 rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-2.5">
+                <span class="font-mono text-xs text-zinc-500">{label}</span>
+                <span class="flex items-center gap-2">
+                  <code data-el={out} class="font-mono text-sm text-emerald-300">—</code>
+                  <button type="button" data-el={copy} class="rounded-md border border-zinc-700 px-2 py-0.5 font-mono text-[11px] text-zinc-400 transition hover:border-zinc-500 hover:text-zinc-100">copy</button>
+                </span>
+              </div>
+            ))
+          }
+        </div>
+      </div>
+    </section>
+
+    <!-- Right: parsed output -->
+    <section class="flex flex-col gap-3 rounded-xl border border-zinc-800 bg-zinc-900/40 p-5">
+      {
+        [
+          ['row-local', 'copy-local', 'Your local time'],
+          ['row-iso', 'copy-iso', 'GMT / UTC (ISO 8601)'],
+        ].map(([row, copy, label]) => (
+          <div class="rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-3">
+            <p class="mb-1 flex items-center justify-between font-mono text-xs text-zinc-500">
+              {label}
+              <button type="button" data-el={copy} class="rounded-md border border-zinc-700 px-2 py-0.5 font-mono text-[11px] text-zinc-400 transition hover:border-zinc-500 hover:text-zinc-100">copy</button>
+            </p>
+            <p data-el={row} class="font-mono text-sm font-semibold break-all text-zinc-100">—</p>
+          </div>
+        ))
+      }
+      <div class="rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-3">
+        <p class="mb-1 font-mono text-xs text-zinc-500">Relative time</p>
+        <p data-el="row-relative" class="font-mono text-sm font-semibold text-emerald-300">—</p>
+      </div>
+
+      <div class="rounded-lg border border-zinc-800 bg-zinc-950 p-4">
+        <div class="mb-3 flex items-center justify-between gap-3">
+          <p class="font-mono text-xs text-zinc-500">time zone machine</p>
+          <select
+            data-el="zone-select"
+            aria-label="Preview another time zone"
+            class="rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1 font-mono text-xs text-indigo-300 outline-none focus:border-indigo-400/60"
+          >
+            {extraZones.map(([zone, city]) => <option value={zone}>{city}</option>)}
+          </select>
+        </div>
+        <ul data-el="zone-matrix" class="divide-y divide-zinc-800/60">
+          {
+            [...matrixZones, ['__custom__', '']].map(([zone, city]) => (
+              <li data-zone={zone} class="flex items-center justify-between gap-3 py-2">
+                <span class="w-28 shrink-0 text-xs text-zinc-400" data-zone-city>{city}</span>
+                <span class="grow font-mono text-xs text-zinc-200" data-zone-time>—</span>
+                <span class="rounded-full bg-zinc-800 px-2 py-0.5 font-mono text-[10px] text-zinc-400" data-zone-offset>—</span>
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+      <p class="text-xs text-zinc-500">
+        All conversion happens with your browser&rsquo;s native <code class="font-mono">Date</code> and
+        <code class="font-mono">Intl</code> engines — timestamps you paste are never transmitted.
+      </p>
+    </section>
+  </div>
+</div>
+
+<script>
+  const root = document.getElementById('timestamp-converter')!;
+  const el = <T extends HTMLElement>(name: string) => root.querySelector<T>(`[data-el="${name}"]`)!;
+
+  const tickerS = el<HTMLSpanElement>('ticker-s');
+  const tickerMs = el<HTMLSpanElement>('ticker-ms');
+  const modeEpochBtn = el<HTMLButtonElement>('mode-epoch');
+  const modeHumanBtn = el<HTMLButtonElement>('mode-human');
+  const epochWrap = el<HTMLDivElement>('epoch-wrap');
+  const humanWrap = el<HTMLDivElement>('human-wrap');
+  const epochInput = el<HTMLInputElement>('epoch');
+  const unitChip = el<HTMLSpanElement>('unit');
+  const errorEl = el<HTMLParagraphElement>('error');
+  const dtl = el<HTMLInputElement>('dtl');
+  const outS = el<HTMLElement>('out-s');
+  const outMs = el<HTMLElement>('out-ms');
+  const rowLocal = el<HTMLParagraphElement>('row-local');
+  const rowIso = el<HTMLParagraphElement>('row-iso');
+  const rowRelative = el<HTMLParagraphElement>('row-relative');
+  const zoneSelect = el<HTMLSelectElement>('zone-select');
+  const zoneRows = [...root.querySelectorAll<HTMLLIElement>('[data-zone]')];
+
+  const MAX_DATE_MS = 8.64e15; // ECMAScript Date range: ±100,000,000 days
+  let selectedMs = Date.now();
+
+  // --- Parsing -----------------------------------------------------------------
+
+  /** Magnitude-based unit sniffing: digit-count rules break on 9-digit pre-2001
+      and negative pre-1970 epochs; |n| < 1e11 → seconds, < 1e14 → milliseconds. */
+  function sniff(raw: string): { ms: number; unit: string } | { error: string } {
+    const clean = raw.trim().replace(/[,\s_]/g, '');
+    if (clean === '' || !/^-?\d+$/.test(clean)) return { error: 'Digits only — paste a Unix epoch like 1800000000.' };
+    const n = Number(clean);
+    let ms: number;
+    let unit: string;
+    if (Math.abs(n) < 1e11) {
+      ms = n * 1000;
+      unit = 'detected: seconds';
+    } else if (Math.abs(n) < 1e14) {
+      ms = n;
+      unit = 'detected: milliseconds';
+    } else {
+      return { error: 'Too large even for milliseconds — check for extra digits.' };
+    }
+    if (Math.abs(ms) > MAX_DATE_MS) return { error: 'Out of range — JavaScript dates cover roughly ±275,000 years.' };
+    return { ms, unit };
+  }
+
+  // --- Formatting ----------------------------------------------------------------
+
+  const localFull = (ms: number) => new Intl.DateTimeFormat(undefined, { dateStyle: 'full', timeStyle: 'long' }).format(ms);
+
+  const zoneTime = (ms: number, zone: string) =>
+    new Intl.DateTimeFormat(undefined, { timeZone: zone, dateStyle: 'medium', timeStyle: 'medium' }).format(ms);
+
+  const zoneOffset = (ms: number, zone: string) =>
+    new Intl.DateTimeFormat('en-US', { timeZone: zone, timeZoneName: 'shortOffset' })
+      .formatToParts(ms)
+      .find((p) => p.type === 'timeZoneName')?.value ?? '';
+
+  const REL_UNITS: [number, Intl.RelativeTimeFormatUnit][] = [
+    [31536000, 'year'],
+    [2592000, 'month'],
+    [604800, 'week'],
+    [86400, 'day'],
+    [3600, 'hour'],
+    [60, 'minute'],
+    [1, 'second'],
+  ];
+
+  function relative(ms: number): string {
+    const diffSec = (ms - Date.now()) / 1000;
+    const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
+    for (const [size, unit] of REL_UNITS) {
+      if (Math.abs(diffSec) >= size || unit === 'second') {
+        return rtf.format(Math.round(diffSec / size), unit);
+      }
+    }
+    return '';
+  }
+
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const toDtlValue = (ms: number) => {
+    const d = new Date(ms);
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  };
+
+  // --- Rendering ---------------------------------------------------------------------
+
+  function renderZones() {
+    for (const row of zoneRows) {
+      const isCustom = row.dataset.zone === '__custom__';
+      const zone = isCustom ? zoneSelect.value : row.dataset.zone!;
+      if (isCustom) {
+        row.querySelector('[data-zone-city]')!.textContent = zoneSelect.selectedOptions[0]?.textContent ?? zone;
+        row.classList.add('bg-indigo-500/5');
+      }
+      try {
+        row.querySelector('[data-zone-time]')!.textContent = zoneTime(selectedMs, zone);
+        row.querySelector('[data-zone-offset]')!.textContent = zoneOffset(selectedMs, zone);
+      } catch {
+        row.querySelector('[data-zone-time]')!.textContent = 'unsupported zone';
+      }
+    }
+  }
+
+  function render() {
+    rowLocal.textContent = localFull(selectedMs);
+    rowIso.textContent = new Date(selectedMs).toISOString();
+    rowRelative.textContent = relative(selectedMs);
+    outS.textContent = String(Math.floor(selectedMs / 1000));
+    outMs.textContent = String(selectedMs);
+    if (document.activeElement !== dtl && Math.abs(selectedMs) <= 8639999999999000) {
+      dtl.value = toDtlValue(selectedMs);
+    }
+    renderZones();
+  }
+
+  function onEpochInput() {
+    const result = sniff(epochInput.value);
+    if ('error' in result) {
+      errorEl.textContent = result.error;
+      errorEl.hidden = false;
+      epochInput.classList.add('border-red-500/60');
+      unitChip.textContent = '';
+      return;
+    }
+    errorEl.hidden = true;
+    epochInput.classList.remove('border-red-500/60');
+    unitChip.textContent = result.unit;
+    selectedMs = result.ms;
+    render();
+  }
+
+  // --- Modes ------------------------------------------------------------------------
+
+  const ACTIVE = 'bg-indigo-500/20 text-indigo-300';
+  const IDLE = 'text-zinc-500 hover:text-zinc-300';
+
+  function setMode(mode: 'epoch' | 'human') {
+    modeEpochBtn.className = `rounded-md px-3 py-1.5 transition ${mode === 'epoch' ? ACTIVE : IDLE}`;
+    modeHumanBtn.className = `rounded-md px-3 py-1.5 transition ${mode === 'human' ? ACTIVE : IDLE}`;
+    epochWrap.hidden = mode === 'human';
+    humanWrap.hidden = mode === 'epoch';
+  }
+
+  // --- Wiring -----------------------------------------------------------------------
+
+  epochInput.addEventListener('input', onEpochInput);
+  dtl.addEventListener('input', () => {
+    const parsed = new Date(dtl.value).getTime();
+    if (Number.isNaN(parsed)) return;
+    selectedMs = parsed;
+    epochInput.value = String(Math.floor(parsed / 1000));
+    unitChip.textContent = 'detected: seconds';
+    render();
+  });
+  modeEpochBtn.addEventListener('click', () => setMode('epoch'));
+  modeHumanBtn.addEventListener('click', () => setMode('human'));
+  zoneSelect.addEventListener('change', renderZones);
+
+  const bindCopy = (name: string, getText: () => string) => {
+    const btn = el<HTMLButtonElement>(name);
+    btn.addEventListener('click', async () => {
+      await navigator.clipboard.writeText(getText());
+      btn.textContent = '✓';
+      setTimeout(() => (btn.textContent = 'copy'), 1200);
+    });
+  };
+  bindCopy('copy-s', () => String(Math.floor(Date.now() / 1000)));
+  bindCopy('copy-ms', () => String(Date.now()));
+  bindCopy('copy-out-s', () => outS.textContent ?? '');
+  bindCopy('copy-out-ms', () => outMs.textContent ?? '');
+  bindCopy('copy-local', () => rowLocal.textContent ?? '');
+  bindCopy('copy-iso', () => rowIso.textContent ?? '');
+
+  function tick() {
+    const now = Date.now();
+    tickerS.textContent = String(Math.floor(now / 1000));
+    tickerMs.textContent = String(now);
+    rowRelative.textContent = relative(selectedMs);
+  }
+  setInterval(tick, 1000);
+
+  // --- Init --------------------------------------------------------------------------
+
+  const defaultEpoch = root.dataset.epoch ?? '';
+  selectedMs = defaultEpoch !== '' ? Number(defaultEpoch) * 1000 : Date.now();
+  epochInput.value = String(Math.floor(selectedMs / 1000));
+  unitChip.textContent = 'detected: seconds';
+  setMode('epoch');
+  tick();
+  render();
+</script>

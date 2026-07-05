@@ -1,0 +1,368 @@
+---
+interface Props {
+  defaultMarkdown: string;
+}
+
+const { defaultMarkdown } = Astro.props;
+
+const macros: [string, string][] = [
+  ['⊞ Table Matrix', ''],
+  ['❮❯ Code Block', ''],
+  ['☑ Task Checkbox', ''],
+];
+---
+
+<div id="markdown-previewer" class="grid gap-5 lg:grid-cols-2">
+  <!-- Left: editor -->
+  <section class="flex flex-col gap-3 rounded-xl border border-zinc-800 bg-zinc-900/40 p-5">
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <label for="md-input" class="text-sm font-semibold text-zinc-200">Markdown editor</label>
+      <div class="flex gap-1.5">
+        <button
+          type="button"
+          data-macro="table"
+          class="rounded-md border border-zinc-700 px-2.5 py-1 font-mono text-[11px] text-zinc-400 transition hover:border-zinc-500 hover:text-zinc-100"
+        >
+          ⊞ table
+        </button>
+        <button
+          type="button"
+          data-macro="code"
+          class="rounded-md border border-zinc-700 px-2.5 py-1 font-mono text-[11px] text-zinc-400 transition hover:border-zinc-500 hover:text-zinc-100"
+        >
+          ❮❯ code
+        </button>
+        <button
+          type="button"
+          data-macro="task"
+          class="rounded-md border border-zinc-700 px-2.5 py-1 font-mono text-[11px] text-zinc-400 transition hover:border-zinc-500 hover:text-zinc-100"
+        >
+          ☑ task
+        </button>
+      </div>
+    </div>
+    <textarea
+      id="md-input"
+      data-el="input"
+      spellcheck="false"
+      class="h-[32rem] w-full grow resize-y rounded-lg border border-zinc-700 bg-zinc-950 px-4 py-3 font-mono text-sm leading-6 text-zinc-200 caret-indigo-300 transition outline-none focus:border-indigo-400/60"
+    >{defaultMarkdown}</textarea>
+  </section>
+
+  <!-- Right: preview -->
+  <section class="flex flex-col gap-3 rounded-xl border border-zinc-800 bg-zinc-900/40 p-5">
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <h2 class="text-sm font-semibold text-zinc-200">Live preview <span class="font-normal text-zinc-500">— GitHub dark</span></h2>
+      <div class="flex items-center gap-3">
+        <span data-el="metrics" class="font-mono text-xs text-zinc-500"></span>
+        <button
+          type="button"
+          data-el="copy-html"
+          class="rounded-md border border-zinc-700 px-2.5 py-1 font-mono text-xs text-zinc-400 transition hover:border-zinc-500 hover:text-zinc-100"
+        >
+          copy HTML
+        </button>
+      </div>
+    </div>
+    <div
+      data-el="preview"
+      class="h-[32rem] grow overflow-auto rounded-lg border border-zinc-800 bg-zinc-950 px-6 py-5 text-[15px] leading-relaxed text-zinc-300"
+    >
+    </div>
+    <p class="text-xs text-zinc-500">
+      Parsed and rendered entirely in this tab by a built-in sanitizing markdown engine — your prose is never sent
+      anywhere. Tip: the rendered checkboxes are clickable and update the markdown source.
+    </p>
+  </section>
+</div>
+
+<script>
+  import { escapeHtml } from '../scripts/format';
+
+  const root = document.getElementById('markdown-previewer')!;
+  const el = <T extends HTMLElement>(name: string) => root.querySelector<T>(`[data-el="${name}"]`)!;
+
+  const input = el<HTMLTextAreaElement>('input');
+  const preview = el<HTMLDivElement>('preview');
+  const metricsEl = el<HTMLSpanElement>('metrics');
+  const copyHtmlBtn = el<HTMLButtonElement>('copy-html');
+
+  // --- Inline rendering -------------------------------------------------------
+
+  const attr = (s: string) => s.replaceAll('"', '&quot;');
+  const safeUrl = (url: string) => /^(https?:\/\/|\/|#|mailto:|data:image\/)/i.test(url.trim());
+
+  const CODE_SPAN = 'rounded bg-zinc-800 px-1.5 py-0.5 font-mono text-[0.85em] text-rose-300';
+  const LINK = 'text-indigo-300 underline decoration-indigo-300/40 underline-offset-2 hover:text-indigo-200';
+
+  function inline(text: string): string {
+    let s = escapeHtml(text);
+    // protect code spans from every other transform
+    const codes: string[] = [];
+    s = s.replace(/`([^`]+)`/g, (_, c: string) => `\u0000${codes.push(c) - 1}\u0000`);
+    s = s.replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, (m, alt: string, url: string) =>
+      safeUrl(url) ? `<img src="${attr(url)}" alt="${attr(alt)}" class="my-2 max-w-full rounded-md border border-zinc-800">` : m
+    );
+    s = s.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (m, label: string, url: string) =>
+      safeUrl(url) ? `<a href="${attr(url)}" class="${LINK}" target="_blank" rel="noopener noreferrer">${label}</a>` : m
+    );
+    s = s.replace(/\*\*([^*]+)\*\*/g, '<strong class="font-bold text-zinc-100">$1</strong>');
+    s = s.replace(/__([^_]+)__/g, '<strong class="font-bold text-zinc-100">$1</strong>');
+    s = s.replace(/(^|[^*\w])\*([^*\n]+)\*/g, '$1<em>$2</em>');
+    s = s.replace(/(^|[^_\w])_([^_\n]+)_/g, '$1<em>$2</em>');
+    s = s.replace(/~~([^~]+)~~/g, '<del class="text-zinc-500">$1</del>');
+    s = s.replace(/\u0000(\d+)\u0000/g, (_, i: string) => `<code class="${CODE_SPAN}">${codes[Number(i)]}</code>`);
+    return s;
+  }
+
+  // --- Block parser -----------------------------------------------------------
+
+  const HEADING_STYLES: Record<number, string> = {
+    1: 'mt-2 mb-4 border-b border-zinc-800 pb-2 text-3xl font-extrabold text-zinc-50',
+    2: 'mt-6 mb-3 border-b border-zinc-800 pb-2 text-2xl font-bold text-zinc-50',
+    3: 'mt-5 mb-2 text-xl font-bold text-zinc-100',
+    4: 'mt-4 mb-2 text-lg font-semibold text-zinc-100',
+    5: 'mt-3 mb-1 text-base font-semibold text-zinc-200',
+    6: 'mt-3 mb-1 text-sm font-semibold text-zinc-400',
+  };
+
+  const isTableSeparator = (line: string) => /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(line);
+  const splitRow = (line: string) =>
+    line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map((c) => c.trim());
+
+  function parseMarkdown(md: string): string {
+    const lines = md.split('\n');
+    const out: string[] = [];
+    const listStack: { type: 'ul' | 'ol'; indent: number }[] = [];
+    let paragraph: string[] = [];
+    let quote: string[] = [];
+    let taskIndex = 0;
+
+    const closeLists = (toIndent = -1) => {
+      while (listStack.length > 0 && listStack[listStack.length - 1].indent > toIndent) {
+        out.push(listStack.pop()!.type === 'ul' ? '</ul>' : '</ol>');
+      }
+    };
+    const flushParagraph = () => {
+      if (paragraph.length > 0) {
+        out.push(`<p class="my-3">${paragraph.map(inline).join('<br>')}</p>`);
+        paragraph = [];
+      }
+    };
+    const flushQuote = () => {
+      if (quote.length > 0) {
+        out.push(
+          `<blockquote class="my-3 border-l-4 border-zinc-600 bg-zinc-900/60 py-2 pr-3 pl-4 text-zinc-400">${quote.map(inline).join('<br>')}</blockquote>`
+        );
+        quote = [];
+      }
+    };
+    const flushAll = () => {
+      flushParagraph();
+      flushQuote();
+      closeLists();
+    };
+    const openList = (type: 'ul' | 'ol', indent: number) => {
+      const top = listStack[listStack.length - 1];
+      if (top && top.indent === indent && top.type !== type) closeLists(indent - 1);
+      if (listStack.length === 0 || listStack[listStack.length - 1].indent < indent) {
+        out.push(type === 'ul' ? '<ul class="my-3 list-disc space-y-1 pl-6">' : '<ol class="my-3 list-decimal space-y-1 pl-6">');
+        listStack.push({ type, indent });
+      }
+    };
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+
+      // fenced code block
+      const fence = line.match(/^```(\w*)\s*$/);
+      if (fence) {
+        flushAll();
+        const lang = fence[1];
+        const buf: string[] = [];
+        i++;
+        while (i < lines.length && !/^```\s*$/.test(lines[i])) buf.push(lines[i++]);
+        out.push(
+          `<div class="my-3 overflow-hidden rounded-lg border border-zinc-800">${
+            lang ? `<p class="border-b border-zinc-800 bg-zinc-900 px-4 py-1.5 font-mono text-[11px] text-zinc-500">${escapeHtml(lang)}</p>` : ''
+          }<pre class="overflow-auto bg-zinc-900/70 px-4 py-3"><code class="font-mono text-[13px] leading-5 text-emerald-300/90">${escapeHtml(buf.join('\n'))}</code></pre></div>`
+        );
+        continue;
+      }
+
+      if (line.trim() === '') {
+        flushAll();
+        continue;
+      }
+
+      const heading = line.match(/^(#{1,6})\s+(.*)$/);
+      if (heading) {
+        flushAll();
+        const level = heading[1].length;
+        out.push(`<h${level} class="${HEADING_STYLES[level]}">${inline(heading[2])}</h${level}>`);
+        continue;
+      }
+
+      if (/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) {
+        flushAll();
+        out.push('<hr class="my-5 border-zinc-800">');
+        continue;
+      }
+
+      const quoted = line.match(/^>\s?(.*)$/);
+      if (quoted) {
+        flushParagraph();
+        closeLists();
+        quote.push(quoted[1]);
+        continue;
+      }
+
+      // table: header row + separator row
+      if (line.includes('|') && i + 1 < lines.length && isTableSeparator(lines[i + 1])) {
+        flushAll();
+        const headers = splitRow(line);
+        const aligns = splitRow(lines[i + 1]).map((sep) => {
+          const left = sep.startsWith(':');
+          const right = sep.endsWith(':');
+          return left && right ? 'center' : right ? 'right' : 'left';
+        });
+        i += 2;
+        const rows: string[][] = [];
+        while (i < lines.length && lines[i].includes('|') && lines[i].trim() !== '') rows.push(splitRow(lines[i++]));
+        i--;
+        const th = headers
+          .map((h, c) => `<th class="border border-zinc-800 bg-zinc-900 px-3 py-2 font-semibold text-zinc-100" style="text-align:${aligns[c] ?? 'left'}">${inline(h)}</th>`)
+          .join('');
+        const trs = rows
+          .map(
+            (cells, r) =>
+              `<tr${r % 2 === 1 ? ' class="bg-zinc-900/40"' : ''}>${headers
+                .map((_, c) => `<td class="border border-zinc-800 px-3 py-2" style="text-align:${aligns[c] ?? 'left'}">${inline(cells[c] ?? '')}</td>`)
+                .join('')}</tr>`
+          )
+          .join('');
+        out.push(`<table class="my-4 w-full border-collapse text-sm"><thead><tr>${th}</tr></thead><tbody>${trs}</tbody></table>`);
+        continue;
+      }
+
+      const task = line.match(/^(\s*)[-*+]\s+\[( |x|X)\]\s+(.*)$/);
+      if (task) {
+        flushParagraph();
+        flushQuote();
+        const indent = task[1].length;
+        closeLists(indent);
+        openList('ul', indent);
+        const checked = task[2].toLowerCase() === 'x';
+        out.push(
+          `<li class="flex list-none items-start gap-2 -ml-5"><input type="checkbox" data-task="${taskIndex++}"${checked ? ' checked' : ''} class="mt-1.5 size-3.5 cursor-pointer accent-emerald-400"><span${checked ? ' class="text-zinc-500 line-through decoration-zinc-600"' : ''}>${inline(task[3])}</span></li>`
+        );
+        continue;
+      }
+
+      const bullet = line.match(/^(\s*)[-*+]\s+(.*)$/);
+      if (bullet) {
+        flushParagraph();
+        flushQuote();
+        const indent = bullet[1].length;
+        closeLists(indent);
+        openList('ul', indent);
+        out.push(`<li>${inline(bullet[2])}</li>`);
+        continue;
+      }
+
+      const ordered = line.match(/^(\s*)\d+\.\s+(.*)$/);
+      if (ordered) {
+        flushParagraph();
+        flushQuote();
+        const indent = ordered[1].length;
+        closeLists(indent);
+        openList('ol', indent);
+        out.push(`<li>${inline(ordered[2])}</li>`);
+        continue;
+      }
+
+      flushQuote();
+      closeLists();
+      paragraph.push(line.trim());
+    }
+
+    flushAll();
+    return out.join('\n');
+  }
+
+  // --- Interactive task checkboxes: write back to the source -------------------
+
+  function toggleTask(index: number) {
+    const lines = input.value.split('\n');
+    let seen = 0;
+    for (let i = 0; i < lines.length; i++) {
+      const m = lines[i].match(/^(\s*[-*+]\s+\[)( |x|X)(\]\s+.*)$/);
+      if (!m) continue;
+      if (seen === index) {
+        lines[i] = m[1] + (m[2] === ' ' ? 'x' : ' ') + m[3];
+        input.value = lines.join('\n');
+        render();
+        return;
+      }
+      seen++;
+    }
+  }
+
+  // --- Rendering & metrics ------------------------------------------------------
+
+  function render() {
+    const scrollRatio = preview.scrollHeight > preview.clientHeight ? preview.scrollTop / (preview.scrollHeight - preview.clientHeight) : 0;
+    preview.innerHTML = parseMarkdown(input.value);
+    preview.scrollTop = scrollRatio * (preview.scrollHeight - preview.clientHeight);
+    preview.querySelectorAll<HTMLInputElement>('input[data-task]').forEach((box) => {
+      box.addEventListener('change', () => toggleTask(Number(box.dataset.task)));
+    });
+    const words = input.value.trim().split(/\s+/).filter(Boolean).length;
+    metricsEl.textContent = `${words.toLocaleString()} words · ${input.value.length.toLocaleString()} chars`;
+  }
+
+  // --- Sync scroll (proportional, both directions) --------------------------------
+
+  let syncing = false;
+  function syncScroll(from: HTMLElement, to: HTMLElement) {
+    if (syncing) return;
+    syncing = true;
+    const fromMax = from.scrollHeight - from.clientHeight;
+    const toMax = to.scrollHeight - to.clientHeight;
+    if (fromMax > 0 && toMax > 0) to.scrollTop = (from.scrollTop / fromMax) * toMax;
+    syncing = false;
+  }
+  input.addEventListener('scroll', () => syncScroll(input, preview));
+  preview.addEventListener('scroll', () => syncScroll(preview, input));
+
+  // --- Macros: inject syntax at the cursor -----------------------------------------
+
+  const MACROS: Record<string, string> = {
+    table: '\n| Column A | Column B | Column C |\n|:---------|:--------:|---------:|\n| left | center | right |\n| `code` | **bold** | 42 |\n',
+    code: '\n```js\nconsole.log("hello from sandboxmax");\n```\n',
+    task: '\n- [ ] New task item\n',
+  };
+  root.querySelectorAll<HTMLButtonElement>('[data-macro]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const snippet = MACROS[btn.dataset.macro!];
+      input.setRangeText(snippet, input.selectionStart, input.selectionEnd, 'end');
+      input.focus();
+      render();
+    });
+  });
+
+  // --- Wiring -------------------------------------------------------------------------
+
+  let debounceTimer: ReturnType<typeof setTimeout>;
+  input.addEventListener('input', () => {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(render, 120);
+  });
+  copyHtmlBtn.addEventListener('click', async () => {
+    await navigator.clipboard.writeText(preview.innerHTML);
+    copyHtmlBtn.textContent = 'copied!';
+    setTimeout(() => (copyHtmlBtn.textContent = 'copy HTML'), 1200);
+  });
+
+  render();
+</script>

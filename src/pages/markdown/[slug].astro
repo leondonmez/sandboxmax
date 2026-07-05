@@ -2,18 +2,18 @@
 import Layout from '../../layouts/Layout.astro';
 import SiteHeader from '../../components/SiteHeader.astro';
 import SiteFooter from '../../components/SiteFooter.astro';
-import JsonFormatter from '../../components/JsonFormatter.astro';
-import { jsonTools } from '../../data/jsonTools';
+import MarkdownPreviewer from '../../components/MarkdownPreviewer.astro';
+import { markdownTools } from '../../data/markdownTools';
 
 export function getStaticPaths() {
-  return jsonTools.map((tool) => ({
+  return markdownTools.map((tool) => ({
     params: { slug: tool.slug },
     props: { tool },
   }));
 }
 
 const { tool } = Astro.props;
-const related = jsonTools.filter((t) => t.slug !== tool.slug);
+const related = markdownTools.filter((t) => t.slug !== tool.slug);
 ---
 
 <Layout title={tool.metaTitle} description={tool.metaDescription} toolName={tool.toolTitle}>
@@ -23,7 +23,7 @@ const related = jsonTools.filter((t) => t.slug !== tool.slug);
     <nav class="mb-6 font-mono text-xs text-zinc-500">
       <a href="/" class="transition hover:text-zinc-300">sandboxmax</a>
       <span class="mx-1">/</span>
-      <a href="/json/fix-malformed-json-syntax" class="transition hover:text-zinc-300">json</a>
+      <a href="/markdown/preview-github-readme-template" class="transition hover:text-zinc-300">markdown</a>
       <span class="mx-1">/</span>
       <span class="text-zinc-400">{tool.slug}</span>
     </nav>
@@ -35,43 +35,43 @@ const related = jsonTools.filter((t) => t.slug !== tool.slug);
       <p class="mt-3 leading-relaxed text-zinc-400">{tool.explanation}</p>
       <p class="mt-3 inline-flex items-center gap-2 rounded-full border border-emerald-400/25 bg-emerald-400/10 px-3 py-1 font-mono text-xs text-emerald-300">
         <span class="size-1.5 rounded-full bg-emerald-400"></span>
-        runs 100% in your browser — payloads stay private
+        runs 100% in your browser — your prose stays private
       </p>
     </div>
 
     <ol class="mb-6 grid gap-3 sm:grid-cols-3">
       {
         [
-          ['Paste your JSON', 'Raw, messy, or broken — the diagnostic banner shows the exact line and column of any syntax error.'],
-          ['Fix & format', 'Beautify with tab indentation or flatten to a minified single line, with live byte savings.'],
-          ['Query with paths', 'Type servers[0].metrics.cpu-style paths to extract just the branch you need from big payloads.'],
+          ['Write markdown', 'Type or paste on the left — the macro buttons drop tables, code blocks, and tasks at your cursor.'],
+          ['Watch it render', 'The right pane re-renders on every keystroke in GitHub&rsquo;s dark style, scroll-synced to the editor.'],
+          ['Copy the HTML', 'Word and character counts update live; one click copies the rendered HTML markup.'],
         ].map(([title, body], i) => (
           <li class="flex items-start gap-3 rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
             <span class="flex size-7 shrink-0 items-center justify-center rounded-full bg-indigo-500/15 font-mono text-sm font-bold text-indigo-300">
               {i + 1}
             </span>
             <span>
-              <span class="block text-sm font-semibold text-zinc-100">{title}</span>
-              <span class="mt-0.5 block text-sm text-zinc-400">{body}</span>
+              <span class="block text-sm font-semibold text-zinc-100" set:html={title} />
+              <span class="mt-0.5 block text-sm text-zinc-400" set:html={body} />
             </span>
           </li>
         ))
       }
     </ol>
 
-    <JsonFormatter defaultJson={tool.defaultJson} defaultPath={tool.defaultPath} />
+    <MarkdownPreviewer defaultMarkdown={tool.defaultMarkdown} />
 
     {
       related.length > 0 && (
         <section class="mt-14">
-          <h2 class="mb-4 text-lg font-bold text-zinc-100">More JSON tools</h2>
+          <h2 class="mb-4 text-lg font-bold text-zinc-100">More markdown tools</h2>
           <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {related.map((t) => (
               <a
-                href={`/json/${t.slug}`}
+                href={`/markdown/${t.slug}`}
                 class="group rounded-xl border border-zinc-800 bg-zinc-900/40 p-5 transition hover:border-indigo-400/40 hover:bg-zinc-900"
               >
-                <span class="font-mono text-xs text-zinc-500">/json/{t.slug}</span>
+                <span class="font-mono text-xs text-zinc-500">/markdown/{t.slug}</span>
                 <h3 class="mt-1 font-semibold text-zinc-100 group-hover:text-indigo-300">{t.toolTitle}</h3>
               </a>
             ))}

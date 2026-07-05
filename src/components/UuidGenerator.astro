@@ -1,0 +1,415 @@
+---
+interface Props {
+  defaultType: 'uuid' | 'nanoid';
+  defaultQuantity: number;
+  defaultNanoLength: number;
+  defaultAlphabet: string;
+  defaultUppercase: boolean;
+  defaultHyphens: boolean;
+  defaultPrefix: string;
+  defaultSuffix: string;
+}
+
+const {
+  defaultType,
+  defaultQuantity,
+  defaultNanoLength,
+  defaultAlphabet,
+  defaultUppercase,
+  defaultHyphens,
+  defaultPrefix,
+  defaultSuffix,
+} = Astro.props;
+---
+
+<div id="uuid-generator" data-type={defaultType} class="grid gap-5 lg:grid-cols-2">
+  <!-- Left: configuration panel -->
+  <section class="flex flex-col gap-5 rounded-xl border border-zinc-800 bg-zinc-900/40 p-5">
+    <div>
+      <p class="mb-2 text-sm font-semibold text-zinc-200">ID type</p>
+      <div class="flex rounded-lg border border-zinc-700 p-0.5 font-mono text-xs">
+        <button type="button" data-el="type-uuid" class="rounded-md px-3 py-1.5 transition">UUID v4</button>
+        <button type="button" data-el="type-nanoid" class="rounded-md px-3 py-1.5 transition">NanoID</button>
+      </div>
+    </div>
+
+    <div>
+      <label for="uuid-qty" class="mb-2 flex items-center justify-between text-sm font-semibold text-zinc-200">
+        Quantity
+        <input
+          id="uuid-qty"
+          data-el="qty-num"
+          type="number"
+          min="1"
+          max="5000"
+          value={defaultQuantity}
+          class="w-20 rounded-md border border-zinc-700 bg-zinc-950 px-2 py-1 text-center font-mono text-xs text-indigo-300 outline-none focus:border-indigo-400/60"
+        />
+      </label>
+      <input
+        data-el="qty-slider"
+        type="range"
+        min="1"
+        max="5000"
+        step="1"
+        value={defaultQuantity}
+        aria-label="Quantity slider"
+        class="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-zinc-800 accent-indigo-400"
+      />
+      <p class="mt-1 flex justify-between font-mono text-[10px] text-zinc-600"><span>1</span><span>5,000</span></p>
+    </div>
+
+    <div data-el="nano-length-wrap">
+      <label for="nano-len" class="mb-2 flex items-center justify-between text-sm font-semibold text-zinc-200">
+        NanoID length
+        <span class="font-mono text-xs text-indigo-300"><span data-el="nano-len-label">{defaultNanoLength}</span> chars</span>
+      </label>
+      <input
+        id="nano-len"
+        data-el="nano-len"
+        type="range"
+        min="4"
+        max="36"
+        step="1"
+        value={defaultNanoLength}
+        class="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-zinc-800 accent-indigo-400"
+      />
+    </div>
+
+    <div data-el="alphabet-wrap">
+      <label for="nano-alphabet" class="mb-2 flex items-center justify-between text-sm font-semibold text-zinc-200">
+        Alphabet pool
+        <span class="font-mono text-xs text-indigo-300"><span data-el="alphabet-count">{defaultAlphabet.length}</span> symbols</span>
+      </label>
+      <input
+        id="nano-alphabet"
+        data-el="alphabet"
+        type="text"
+        value={defaultAlphabet}
+        spellcheck="false"
+        autocomplete="off"
+        class="w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 font-mono text-xs text-zinc-200 outline-none focus:border-indigo-400/60"
+      />
+      <p data-el="alphabet-note" hidden class="mt-1.5 rounded-md bg-amber-500/10 px-2.5 py-1.5 font-mono text-[11px] text-amber-300"></p>
+    </div>
+
+    <fieldset class="flex flex-col gap-3">
+      <legend class="mb-1 text-sm font-semibold text-zinc-200">Formatting</legend>
+      <label class="flex cursor-pointer items-center gap-2.5 text-sm text-zinc-300">
+        <input data-el="uppercase" type="checkbox" checked={defaultUppercase} class="peer sr-only" />
+        <span class="relative h-5 w-9 rounded-full bg-zinc-700 transition peer-checked:bg-indigo-500 after:absolute after:top-0.5 after:left-0.5 after:size-4 after:rounded-full after:bg-zinc-300 after:transition peer-checked:after:translate-x-4"></span>
+        Uppercase
+      </label>
+      <label data-el="hyphens-wrap" class="flex cursor-pointer items-center gap-2.5 text-sm text-zinc-300">
+        <input data-el="hyphens" type="checkbox" checked={defaultHyphens} class="peer sr-only" />
+        <span class="relative h-5 w-9 rounded-full bg-zinc-700 transition peer-checked:bg-indigo-500 after:absolute after:top-0.5 after:left-0.5 after:size-4 after:rounded-full after:bg-zinc-300 after:transition peer-checked:after:translate-x-4"></span>
+        Include hyphens <span class="text-xs text-zinc-500">(UUID)</span>
+      </label>
+      <div class="flex gap-2">
+        <input
+          data-el="prefix"
+          type="text"
+          value={defaultPrefix}
+          placeholder="prefix (usr_)"
+          aria-label="Custom ID prefix"
+          spellcheck="false"
+          class="min-w-0 flex-1 rounded-md border border-zinc-700 bg-zinc-950 px-3 py-1.5 font-mono text-xs text-zinc-200 outline-none focus:border-indigo-400/60"
+        />
+        <input
+          data-el="suffix"
+          type="text"
+          value={defaultSuffix}
+          placeholder="suffix"
+          aria-label="Custom ID suffix"
+          spellcheck="false"
+          class="min-w-0 flex-1 rounded-md border border-zinc-700 bg-zinc-950 px-3 py-1.5 font-mono text-xs text-zinc-200 outline-none focus:border-indigo-400/60"
+        />
+      </div>
+    </fieldset>
+
+    <button
+      type="button"
+      data-el="generate"
+      class="rounded-lg border border-emerald-400/40 bg-emerald-400/10 px-4 py-2.5 text-sm font-bold text-emerald-300 transition hover:border-emerald-400/70 hover:bg-emerald-400/20"
+    >
+      ⚡ Generate Bulk Pack
+    </button>
+  </section>
+
+  <!-- Right: output sandbox -->
+  <section class="flex flex-col gap-3 rounded-xl border border-zinc-800 bg-zinc-900/40 p-5">
+    <div class="grid grid-cols-3 gap-3 rounded-lg border border-zinc-800 bg-zinc-950/60 px-4 py-3">
+      <div>
+        <p data-el="stat-count" class="font-mono text-lg font-bold text-zinc-100">0</p>
+        <p class="text-xs text-zinc-500">IDs generated</p>
+      </div>
+      <div>
+        <p data-el="stat-collision" class="font-mono text-lg font-bold text-zinc-100">—</p>
+        <p class="text-xs text-zinc-500">collision risk</p>
+      </div>
+      <div>
+        <p data-el="stat-time" class="font-mono text-lg font-bold text-emerald-300">—</p>
+        <p class="text-xs text-zinc-500">generated in</p>
+      </div>
+    </div>
+    <p data-el="entropy-note" class="font-mono text-[11px] text-zinc-500"></p>
+    <textarea
+      data-el="output"
+      readonly
+      spellcheck="false"
+      aria-label="Generated IDs"
+      class="h-80 w-full grow resize-y rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-3 font-mono text-xs leading-5 text-emerald-300/90 outline-none"
+    ></textarea>
+    <div class="flex gap-2">
+      <button
+        type="button"
+        data-el="copy"
+        class="flex-1 rounded-md border border-zinc-700 px-3 py-2 text-xs font-semibold text-zinc-300 transition hover:border-zinc-500 hover:text-zinc-100"
+      >
+        ⧉ Copy All to Clipboard
+      </button>
+      <button
+        type="button"
+        data-el="download"
+        class="rounded-md border border-zinc-700 px-3 py-2 text-xs font-semibold text-zinc-300 transition hover:border-zinc-500 hover:text-zinc-100"
+      >
+        ↓ Download .txt
+      </button>
+    </div>
+    <p class="text-xs text-zinc-500">
+      Entropy comes from your browser&rsquo;s <code class="font-mono">crypto</code> Web API — generated on your CPU,
+      never transmitted, never logged.
+    </p>
+  </section>
+</div>
+
+<script>
+  const root = document.getElementById('uuid-generator')!;
+  const el = <T extends HTMLElement>(name: string) => root.querySelector<T>(`[data-el="${name}"]`)!;
+
+  const typeUuidBtn = el<HTMLButtonElement>('type-uuid');
+  const typeNanoBtn = el<HTMLButtonElement>('type-nanoid');
+  const qtyNum = el<HTMLInputElement>('qty-num');
+  const qtySlider = el<HTMLInputElement>('qty-slider');
+  const nanoLenWrap = el<HTMLDivElement>('nano-length-wrap');
+  const nanoLen = el<HTMLInputElement>('nano-len');
+  const nanoLenLabel = el<HTMLSpanElement>('nano-len-label');
+  const alphabetWrap = el<HTMLDivElement>('alphabet-wrap');
+  const alphabetInput = el<HTMLInputElement>('alphabet');
+  const alphabetCount = el<HTMLSpanElement>('alphabet-count');
+  const alphabetNote = el<HTMLParagraphElement>('alphabet-note');
+  const uppercaseToggle = el<HTMLInputElement>('uppercase');
+  const hyphensWrap = el<HTMLLabelElement>('hyphens-wrap');
+  const hyphensToggle = el<HTMLInputElement>('hyphens');
+  const prefixInput = el<HTMLInputElement>('prefix');
+  const suffixInput = el<HTMLInputElement>('suffix');
+  const generateBtn = el<HTMLButtonElement>('generate');
+  const output = el<HTMLTextAreaElement>('output');
+  const statCount = el<HTMLParagraphElement>('stat-count');
+  const statCollision = el<HTMLParagraphElement>('stat-collision');
+  const statTime = el<HTMLParagraphElement>('stat-time');
+  const entropyNote = el<HTMLParagraphElement>('entropy-note');
+  const copyBtn = el<HTMLButtonElement>('copy');
+  const downloadBtn = el<HTMLButtonElement>('download');
+
+  let idType = (root.dataset.type ?? 'uuid') as 'uuid' | 'nanoid';
+  let rawIds: string[] = []; // canonical form — formatting is applied at render time
+  let lastMs = 0;
+
+  // --- Crypto generation -----------------------------------------------------
+
+  const RANDOM_CHUNK = 65536; // crypto.getRandomValues per-call byte limit
+
+  /** The user-editable pool, deduplicated. Falls back to reporting <2 unique symbols as unusable. */
+  function currentAlphabet(): { chars: string; removed: number } {
+    const unique = [...new Set(alphabetInput.value)].join('');
+    return { chars: unique, removed: alphabetInput.value.length - unique.length };
+  }
+
+  function randomBytes(total: number): Uint8Array {
+    const bytes = new Uint8Array(total);
+    for (let i = 0; i < total; i += RANDOM_CHUNK) {
+      crypto.getRandomValues(bytes.subarray(i, Math.min(i + RANDOM_CHUNK, total)));
+    }
+    return bytes;
+  }
+
+  /** RFC 4122 v4 fallback for browsers without crypto.randomUUID (non-HTTPS contexts). */
+  function uuidFromBytes(b: Uint8Array): string {
+    b[6] = (b[6] & 0x0f) | 0x40; // version 4
+    b[8] = (b[8] & 0x3f) | 0x80; // variant 10
+    const hex = Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+  }
+
+  function generateUuids(n: number): string[] {
+    if (typeof crypto.randomUUID === 'function') {
+      return Array.from({ length: n }, () => crypto.randomUUID());
+    }
+    const bytes = randomBytes(n * 16);
+    return Array.from({ length: n }, (_, i) => uuidFromBytes(bytes.subarray(i * 16, i * 16 + 16)));
+  }
+
+  /** Rejection sampling: mask to the next power of two and discard out-of-range bytes,
+      so arbitrary alphabet sizes stay perfectly uniform (a plain modulo would skew them).
+      For a 64-symbol pool the mask rejects nothing — zero overhead on the default path. */
+  function generateNanoids(n: number, len: number, alphabet: string): string[] {
+    const size = alphabet.length;
+    const mask = (1 << Math.ceil(Math.log2(size))) - 1;
+    let buf = randomBytes(Math.min(RANDOM_CHUNK, Math.ceil(n * len * ((mask + 1) / size) * 1.1) + 16));
+    let pos = 0;
+    const nextIndex = () => {
+      for (;;) {
+        if (pos >= buf.length) {
+          buf = randomBytes(RANDOM_CHUNK);
+          pos = 0;
+        }
+        const v = buf[pos++] & mask;
+        if (v < size) return v;
+      }
+    };
+    const ids: string[] = new Array(n);
+    for (let i = 0; i < n; i++) {
+      let id = '';
+      for (let j = 0; j < len; j++) id += alphabet[nextIndex()];
+      ids[i] = id;
+    }
+    return ids;
+  }
+
+  // --- Metrics -----------------------------------------------------------------
+
+  /** Birthday-bound collision probability for this batch, computed in log10 space. */
+  function collisionLabel(n: number, bits: number): string {
+    if (n < 2) return 'zero (single ID)';
+    const log10p = Math.log10((n * (n - 1)) / 2) - bits * Math.LOG10E * Math.LN2;
+    if (log10p >= -6) return `≈ 1 in ${Math.round(1 / 10 ** log10p).toLocaleString()}`;
+    return `≈ 1 in 10^${Math.round(-log10p)}`;
+  }
+
+  /** Birthday bound flipped around: how long you'd have to generate continuously
+      (at 1,000 IDs/hour) before this ID shape reaches a 1% collision probability. */
+  function yearsTo1Percent(bits: number): string {
+    const log10Ids = 0.5 * (Math.log10(0.0201) + bits * Math.log10(2));
+    const log10Years = log10Ids - Math.log10(1000 * 8766);
+    const tail = 'at 1,000 IDs/hour to reach 1% collision odds';
+    if (log10Years < 0) return `under a year ${tail}`;
+    const scales: [number, string][] = [
+      [0, ''],
+      [3, ' thousand'],
+      [6, ' million'],
+      [9, ' billion'],
+      [12, ' trillion'],
+    ];
+    for (const [exp, name] of scales) {
+      if (log10Years >= exp && log10Years < exp + 3) {
+        const value = 10 ** (log10Years - exp);
+        return `~${value >= 100 ? Math.round(value) : Number(value.toFixed(1))}${name} years ${tail}`;
+      }
+    }
+    return `~10^${Math.round(log10Years)} years ${tail}`;
+  }
+
+  // --- Rendering ------------------------------------------------------------------
+
+  const clampQty = () => Math.min(5000, Math.max(1, Number(qtyNum.value) || 1));
+
+  function formatIds(): string[] {
+    const prefix = prefixInput.value;
+    const suffix = suffixInput.value;
+    return rawIds.map((raw) => {
+      let id = raw;
+      if (idType === 'uuid' && !hyphensToggle.checked) id = id.replaceAll('-', '');
+      if (uppercaseToggle.checked) id = id.toUpperCase();
+      return prefix + id + suffix;
+    });
+  }
+
+  function render() {
+    const ids = formatIds();
+    output.value = ids.join('\n');
+    statCount.textContent = ids.length.toLocaleString();
+    const alphabetSize = Math.max(2, currentAlphabet().chars.length);
+    const bits = idType === 'uuid' ? 122 : Number(nanoLen.value) * Math.log2(alphabetSize);
+    statCollision.textContent = collisionLabel(ids.length, bits);
+    statTime.textContent = `${lastMs.toFixed(1)} ms`;
+    entropyNote.textContent = `${Math.round(bits)} bits of entropy per ID · ${yearsTo1Percent(bits)} · ${
+      idType === 'uuid' ? 'RFC 4122 v4 via crypto.randomUUID' : `${alphabetSize}-symbol pool via crypto.getRandomValues`
+    }`;
+  }
+
+  function generate() {
+    const n = clampQty();
+    qtyNum.value = qtySlider.value = String(n);
+    const { chars, removed } = currentAlphabet();
+    alphabetCount.textContent = String(chars.length);
+    if (idType === 'nanoid' && chars.length < 2) {
+      alphabetNote.textContent = 'alphabet needs at least 2 unique symbols — generation paused.';
+      alphabetNote.hidden = false;
+      return;
+    }
+    alphabetNote.hidden = removed === 0;
+    if (removed > 0) {
+      alphabetNote.textContent = `${removed} duplicate symbol${removed > 1 ? 's' : ''} removed — duplicates would bias the distribution.`;
+    }
+    const start = performance.now();
+    rawIds = idType === 'uuid' ? generateUuids(n) : generateNanoids(n, Number(nanoLen.value), chars);
+    lastMs = performance.now() - start;
+    render();
+  }
+
+  const ACTIVE = 'bg-indigo-500/20 text-indigo-300';
+  const IDLE = 'text-zinc-500 hover:text-zinc-300';
+
+  function renderControls() {
+    typeUuidBtn.className = `rounded-md px-3 py-1.5 transition ${idType === 'uuid' ? ACTIVE : IDLE}`;
+    typeNanoBtn.className = `rounded-md px-3 py-1.5 transition ${idType === 'nanoid' ? ACTIVE : IDLE}`;
+    nanoLenWrap.hidden = idType === 'uuid';
+    alphabetWrap.hidden = idType === 'uuid';
+    hyphensWrap.hidden = idType === 'nanoid';
+  }
+
+  function setType(next: 'uuid' | 'nanoid') {
+    idType = next;
+    renderControls();
+    generate();
+  }
+
+  // --- Wiring -------------------------------------------------------------------------
+
+  typeUuidBtn.addEventListener('click', () => setType('uuid'));
+  typeNanoBtn.addEventListener('click', () => setType('nanoid'));
+  generateBtn.addEventListener('click', generate);
+  qtySlider.addEventListener('input', () => {
+    qtyNum.value = qtySlider.value;
+    generate();
+  });
+  qtyNum.addEventListener('change', generate);
+  nanoLen.addEventListener('input', () => {
+    nanoLenLabel.textContent = nanoLen.value;
+    generate();
+  });
+  alphabetInput.addEventListener('input', generate);
+  // pure formatting — re-render the existing batch without burning fresh entropy
+  uppercaseToggle.addEventListener('change', render);
+  hyphensToggle.addEventListener('change', render);
+  prefixInput.addEventListener('input', render);
+  suffixInput.addEventListener('input', render);
+
+  copyBtn.addEventListener('click', async () => {
+    await navigator.clipboard.writeText(output.value);
+    copyBtn.textContent = '✓ copied!';
+    setTimeout(() => (copyBtn.textContent = '⧉ Copy All to Clipboard'), 1200);
+  });
+  downloadBtn.addEventListener('click', () => {
+    const blob = new Blob([output.value + '\n'], { type: 'text/plain' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `sandboxmax-${idType}-${rawIds.length}.txt`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+
+  renderControls();
+  generate();
+</script>
