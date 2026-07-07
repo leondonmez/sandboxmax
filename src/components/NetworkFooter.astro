@@ -29,6 +29,11 @@ const network: NetworkSite[] = [
     blurb: 'Instant mock API endpoints and JSON hosting.',
     url: 'https://mockdock.dev',
   },
+  {
+    name: 'Flexr',
+    blurb: 'Interactive CSS Flexbox & Grid layout laboratory.',
+    url: 'https://flexr.dev',
+  },
 ];
 
 const year = new Date().getFullYear();
@@ -38,7 +43,7 @@ const year = new Date().getFullYear();
   <div class="mx-auto max-w-6xl px-4 py-10 sm:px-6">
     <p class="mb-5 font-mono text-xs tracking-wide text-zinc-500 uppercase">The network</p>
 
-    <ul class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <ul class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
       {
         network.map((site) =>
           site.current ? (
