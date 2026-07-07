@@ -1,5 +1,6 @@
 ---
 import '../styles/global.css';
+import NetworkFooter from '../components/NetworkFooter.astro';
 
 interface Props {
   title: string;
@@ -52,7 +53,8 @@ const schema = toolName
     <meta property="og:type" content="website" />
     <script type="application/ld+json" set:html={JSON.stringify(schema)} />
   </head>
-  <body class="min-h-screen bg-zinc-950 text-zinc-300 antialiased selection:bg-emerald-400/30">
+  <body class="flex min-h-screen flex-col bg-zinc-950 text-zinc-300 antialiased selection:bg-emerald-400/30">
     <slot />
+    <NetworkFooter />
   </body>
 </html>
