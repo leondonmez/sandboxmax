@@ -1,7 +1,24 @@
 ---
+import { tools } from '../data/tools';
+
+const liveTools = tools.filter((t) => t.status === 'live');
 ---
 
 <footer class="border-t border-zinc-800/80">
+  <nav aria-label="All utilities" class="mx-auto max-w-6xl px-4 pt-7 sm:px-6">
+    <p class="mb-2.5 font-mono text-[10px] tracking-wide text-zinc-600 uppercase">all utilities</p>
+    <ul class="flex flex-wrap gap-x-5 gap-y-2 text-xs">
+      {
+        liveTools.map((tool) => (
+          <li>
+            <a href={`/${tool.slug}`} class="text-zinc-500 transition hover:text-zinc-200">
+              {tool.name}
+            </a>
+          </li>
+        ))
+      }
+    </ul>
+  </nav>
   <div class="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-4 py-8 text-sm text-zinc-500 sm:flex-row sm:px-6">
     <p>
       <span class="font-mono text-zinc-400">▚ sandboxmax</span> — free forever, local forever.

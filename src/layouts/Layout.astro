@@ -13,6 +13,8 @@ interface Props {
 
 const { title, description, toolName, noindex = false } = Astro.props;
 
+const canonicalUrl = new URL(Astro.url.pathname, Astro.site).href;
+
 const schema = toolName
   ? {
       '@context': 'https://schema.org',
@@ -36,6 +38,27 @@ const schema = toolName
       description,
       url: Astro.site?.href,
     };
+
+// AEO: a static privacy Q&A on every tool page — the question every user of a
+// paste-sensitive-data tool actually asks, answered in crawlable structured data
+const faqSchema = toolName
+  ? {
+      '@context': 'https://schema.org',
+      '@type': 'FAQPage',
+      mainEntity: [
+        {
+          '@type': 'Question',
+          name: `Is it safe to paste sensitive data into the ${toolName}?`,
+          acceptedAnswer: {
+            '@type': 'Answer',
+            text: `Yes. The ${toolName} runs 100% client-side inside your browser thread — nothing you paste is uploaded, logged, or transmitted. SandboxMax is a static site with no backend server, no cookies, and no trackers: open your browser's network panel while you work and you'll see zero requests leave the tab.`,
+          },
+        },
+      ],
+    }
+  : null;
+
+const schemas = [schema, faqSchema].filter(Boolean);
 ---
 
 <html lang="en" class="scheme-dark">
@@ -46,12 +69,17 @@ const schema = toolName
     <meta name="generator" content={Astro.generator} />
     <title>{title}</title>
     <meta name="description" content={description} />
-    <link rel="canonical" href={new URL(Astro.url.pathname, Astro.site)} />
+    <link rel="canonical" href={canonicalUrl} />
     <meta name="robots" content={noindex ? 'noindex, follow' : 'index, follow'} />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:type" content="website" />
-    <script type="application/ld+json" set:html={JSON.stringify(schema)} />
+    <meta property="og:url" content={canonicalUrl} />
+    <meta property="og:site_name" content="SandboxMax" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    {schemas.map((s) => <script type="application/ld+json" set:html={JSON.stringify(s)} />)}
   </head>
   <body class="flex min-h-screen flex-col bg-zinc-950 text-zinc-300 antialiased selection:bg-emerald-400/30">
     <slot />

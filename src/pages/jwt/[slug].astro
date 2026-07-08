@@ -2,6 +2,7 @@
 import Layout from '../../layouts/Layout.astro';
 import SiteHeader from '../../components/SiteHeader.astro';
 import SiteFooter from '../../components/SiteFooter.astro';
+import ToolSteps from '../../components/ToolSteps.astro';
 import JwtDebugger from '../../components/JwtDebugger.astro';
 import { jwtTools } from '../../data/jwtTools';
 
@@ -39,25 +40,11 @@ const related = jwtTools.filter((t) => t.slug !== tool.slug);
       </p>
     </div>
 
-    <ol class="mb-6 grid gap-3 sm:grid-cols-3">
-      {
-        [
+    <ToolSteps toolName={tool.toolTitle} steps={[
           ['Paste your token', 'Drop a JWT — or a full Authorization header; the "Bearer " prefix is stripped automatically.'],
           ['Read the decoded claims', 'Header and payload appear instantly as color-coded JSON. Nothing is uploaded or verified remotely.'],
           ['Simulate session death', 'Watch the live expiry countdown, then fast-forward time to see the token die on schedule.'],
-        ].map(([title, body], i) => (
-          <li class="flex items-start gap-3 rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
-            <span class="flex size-7 shrink-0 items-center justify-center rounded-full bg-indigo-500/15 font-mono text-sm font-bold text-indigo-300">
-              {i + 1}
-            </span>
-            <span>
-              <span class="block text-sm font-semibold text-zinc-100">{title}</span>
-              <span class="mt-0.5 block text-sm text-zinc-400">{body}</span>
-            </span>
-          </li>
-        ))
-      }
-    </ol>
+        ]} />
 
     <JwtDebugger defaultToken={tool.defaultToken} />
 

@@ -7,6 +7,9 @@ export interface RegexTool {
   defaultRegex: string;
   defaultFlags: string;
   testString: string;
+  /** build-time rendered "expected output" — what the default pattern matches
+      against the default test string, so crawlers see input AND solution */
+  exampleOutput: string;
 }
 
 export const regexTools: RegexTool[] = [
@@ -28,6 +31,18 @@ export const regexTools: RegexTool[] = [
       '2026-07-04 12:01:26 error: deploy failed after 3 retries',
       '2026-07-04 12:01:27 INFO  fallback succeeded, warning cleared',
       'This line mentions terrorism-free words like errorless — no match here? Watch the word boundary.',
+    ].join('\n'),
+    exampleOutput: [
+      'Matches found: 5',
+      '',
+      'WARN     → line 2 (case-insensitive: i flag)',
+      'ERROR    → line 3',
+      'error    → line 5',
+      'failed   → line 5',
+      'warning  → line 6',
+      '',
+      'No match: "terrorism-free" and "errorless" — the \\b word boundary',
+      'only matches whole words, not substrings inside longer words.',
     ].join('\n'),
   },
   {
@@ -52,6 +67,16 @@ export const regexTools: RegexTool[] = [
       '  double@@at.com',
       '  trailing.dot@domain.',
     ].join('\n'),
+    exampleOutput: [
+      'Matches found: 3',
+      '',
+      'contact@sandboxmax.com',
+      'first.last+newsletter@sub.example.co.uk',
+      'DEV_team%2026@build-server.io',
+      '',
+      'Rejected: not-an-email.com (no @), user@localhost (no TLD),',
+      'double@@at.com (empty local part), trailing.dot@domain. (no TLD letters).',
+    ].join('\n'),
   },
   {
     slug: 'password-validation',
@@ -71,6 +96,16 @@ export const regexTools: RegexTool[] = [
       'ALLUPPERCASE1',
       'NoNumbersHere',
       'Sh0rt!',
+    ].join('\n'),
+    exampleOutput: [
+      'Matches found: 3 (lines that PASS the policy)',
+      '',
+      'Correct1Horse     ✓ upper + lower + digit, 13 chars',
+      'sandbox_MAX_2026  ✓ upper + lower + digit, 16 chars',
+      'Tr0ub4dor&3       ✓ upper + lower + digit, 11 chars',
+      '',
+      'Failing: alllowercase1 (no uppercase), ALLUPPERCASE1 (no lowercase),',
+      'NoNumbersHere (no digit), Sh0rt! (only 6 characters).',
     ].join('\n'),
   },
   {
@@ -92,6 +127,15 @@ export const regexTools: RegexTool[] = [
       'Will NOT match:',
       '  math like 3 < 5 and x > 2',
       '  escaped entities: &lt;div&gt;',
+    ].join('\n'),
+    exampleOutput: [
+      'Matches found: 11 (every HTML tag)',
+      '',
+      '<article class="post">  <h1>  </h1>  <p>  <strong>  </strong>',
+      '<em>  </em>  <br/>  </p>  </article>',
+      '',
+      'Left untouched: "3 < 5 and x > 2" (bare comparison signs are not tags)',
+      'and "&lt;div&gt;" (already-escaped entities contain no real < bracket).',
     ].join('\n'),
   },
 ];

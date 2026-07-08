@@ -2,6 +2,7 @@
 import Layout from '../../layouts/Layout.astro';
 import SiteHeader from '../../components/SiteHeader.astro';
 import SiteFooter from '../../components/SiteFooter.astro';
+import ToolSteps from '../../components/ToolSteps.astro';
 import CronParser from '../../components/CronParser.astro';
 import { cronTools } from '../../data/cronTools';
 
@@ -39,25 +40,11 @@ const related = cronTools.filter((t) => t.slug !== tool.slug);
       </p>
     </div>
 
-    <ol class="mb-6 grid gap-3 sm:grid-cols-3">
-      {
-        [
+    <ToolSteps toolName={tool.toolTitle} steps={[
           ['Paste your cron', 'Five space-separated fields — day and month names (MON-FRI, JAN) and @daily-style aliases work too.'],
           ['Read the translation', 'Instant plain English, plus a field-by-field breakdown of what each token means.'],
           ['Check the timeline', 'Your next 5 execution times with live countdowns — shown in local time or UTC.'],
-        ].map(([title, body], i) => (
-          <li class="flex items-start gap-3 rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
-            <span class="flex size-7 shrink-0 items-center justify-center rounded-full bg-indigo-500/15 font-mono text-sm font-bold text-indigo-300">
-              {i + 1}
-            </span>
-            <span>
-              <span class="block text-sm font-semibold text-zinc-100">{title}</span>
-              <span class="mt-0.5 block text-sm text-zinc-400">{body}</span>
-            </span>
-          </li>
-        ))
-      }
-    </ol>
+        ]} />
 
     <CronParser defaultCron={tool.defaultCron} />
 

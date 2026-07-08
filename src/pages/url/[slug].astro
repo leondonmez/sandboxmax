@@ -2,6 +2,7 @@
 import Layout from '../../layouts/Layout.astro';
 import SiteHeader from '../../components/SiteHeader.astro';
 import SiteFooter from '../../components/SiteFooter.astro';
+import ToolSteps from '../../components/ToolSteps.astro';
 import UrlEncoder from '../../components/UrlEncoder.astro';
 import { urlTools } from '../../data/urlTools';
 
@@ -39,25 +40,11 @@ const related = urlTools.filter((t) => t.slug !== tool.slug);
       </p>
     </div>
 
-    <ol class="mb-6 grid gap-3 sm:grid-cols-3">
-      {
-        [
+    <ToolSteps toolName={tool.toolTitle} steps={[
           ['Paste URL or text', 'Any string works — full URLs unlock the parameter grid automatically.'],
           ['Encode or decode', 'One click either way; your last action keeps re-running live as you type.'],
           ['Work the param grid', 'Every query key decoded into rows, trackers flagged amber — copy a clean URL or the params as JSON.'],
-        ].map(([title, body], i) => (
-          <li class="flex items-start gap-3 rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
-            <span class="flex size-7 shrink-0 items-center justify-center rounded-full bg-indigo-500/15 font-mono text-sm font-bold text-indigo-300">
-              {i + 1}
-            </span>
-            <span>
-              <span class="block text-sm font-semibold text-zinc-100">{title}</span>
-              <span class="mt-0.5 block text-sm text-zinc-400">{body}</span>
-            </span>
-          </li>
-        ))
-      }
-    </ol>
+        ]} />
 
     <UrlEncoder defaultDirection={tool.defaultDirection} defaultInput={tool.defaultInput} />
 

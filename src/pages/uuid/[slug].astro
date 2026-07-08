@@ -2,6 +2,7 @@
 import Layout from '../../layouts/Layout.astro';
 import SiteHeader from '../../components/SiteHeader.astro';
 import SiteFooter from '../../components/SiteFooter.astro';
+import ToolSteps from '../../components/ToolSteps.astro';
 import UuidGenerator from '../../components/UuidGenerator.astro';
 import { uuidTools } from '../../data/uuidTools';
 
@@ -39,25 +40,11 @@ const related = uuidTools.filter((t) => t.slug !== tool.slug);
       </p>
     </div>
 
-    <ol class="mb-6 grid gap-3 sm:grid-cols-3">
-      {
-        [
+    <ToolSteps toolName={tool.toolTitle} steps={[
           ['Configure the batch', 'Pick UUID v4 or NanoID, set the quantity (up to 5,000), and tune case, hyphens, and prefix/suffix.'],
           ['Generate instantly', 'One click pulls secure entropy from the crypto Web API — the timer proves it takes milliseconds.'],
           ['Copy or download', 'Grab the whole pack to your clipboard or save it as a .txt file, one ID per line.'],
-        ].map(([title, body], i) => (
-          <li class="flex items-start gap-3 rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
-            <span class="flex size-7 shrink-0 items-center justify-center rounded-full bg-indigo-500/15 font-mono text-sm font-bold text-indigo-300">
-              {i + 1}
-            </span>
-            <span>
-              <span class="block text-sm font-semibold text-zinc-100">{title}</span>
-              <span class="mt-0.5 block text-sm text-zinc-400">{body}</span>
-            </span>
-          </li>
-        ))
-      }
-    </ol>
+        ]} />
 
     <UuidGenerator
       defaultType={tool.defaultType}

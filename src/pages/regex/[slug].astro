@@ -2,6 +2,7 @@
 import Layout from '../../layouts/Layout.astro';
 import SiteHeader from '../../components/SiteHeader.astro';
 import SiteFooter from '../../components/SiteFooter.astro';
+import ToolSteps from '../../components/ToolSteps.astro';
 import RegexSandbox from '../../components/RegexSandbox.astro';
 import { regexTools } from '../../data/regexTools';
 
@@ -39,31 +40,28 @@ const related = regexTools.filter((t) => t.slug !== tool.slug);
       </p>
     </div>
 
-    <ol class="mb-6 grid gap-3 sm:grid-cols-3">
-      {
-        [
+    <ToolSteps toolName={tool.toolTitle} steps={[
           ['Paste your text', 'Drop your logs, code, or data into the test box on the right.'],
           ['Tweak the pattern', 'Edit the regex formula or toggle the g / i / m flags on the left.'],
           ['See matches instantly', 'Matching text lights up as you type, with a live counter.'],
-        ].map(([title, body], i) => (
-          <li class="flex items-start gap-3 rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
-            <span class="flex size-7 shrink-0 items-center justify-center rounded-full bg-indigo-500/15 font-mono text-sm font-bold text-indigo-300">
-              {i + 1}
-            </span>
-            <span>
-              <span class="block text-sm font-semibold text-zinc-100">{title}</span>
-              <span class="mt-0.5 block text-sm text-zinc-400">{body}</span>
-            </span>
-          </li>
-        ))
-      }
-    </ol>
+        ]} />
 
     <RegexSandbox
       defaultRegex={tool.defaultRegex}
       defaultFlags={tool.defaultFlags}
       testString={tool.testString}
     />
+
+    <section class="mt-8 rounded-xl border border-zinc-800 bg-zinc-900/40 p-5">
+      <h2 class="mb-2 text-sm font-semibold text-zinc-200">
+        Expected output <span class="font-normal text-zinc-500">— what the pre-loaded example matches</span>
+      </h2>
+      <pre class="overflow-auto rounded-lg bg-zinc-950 px-4 py-3 font-mono text-xs leading-5 whitespace-pre-wrap text-emerald-300/90">{tool.exampleOutput}</pre>
+      <p class="mt-2 text-xs text-zinc-500">
+        This is the result the sandbox above computes from its sample data — edit the pattern, flags, or test string
+        and the live match counter recalculates instantly.
+      </p>
+    </section>
 
     {
       related.length > 0 && (

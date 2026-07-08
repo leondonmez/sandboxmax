@@ -2,6 +2,7 @@
 import Layout from '../../layouts/Layout.astro';
 import SiteHeader from '../../components/SiteHeader.astro';
 import SiteFooter from '../../components/SiteFooter.astro';
+import ToolSteps from '../../components/ToolSteps.astro';
 import TimestampConverter from '../../components/TimestampConverter.astro';
 import { timestampTools } from '../../data/timestampTools';
 
@@ -39,25 +40,11 @@ const related = timestampTools.filter((t) => t.slug !== tool.slug);
       </p>
     </div>
 
-    <ol class="mb-6 grid gap-3 sm:grid-cols-3">
-      {
-        [
+    <ToolSteps toolName={tool.toolTitle} steps={[
           ['Paste an epoch', 'Seconds or milliseconds — the unit is auto-detected. Or flip to Human → Epoch and pick a date.'],
           ['Read every format', 'Local time, UTC ISO 8601, and relative time render together, instantly.'],
           ['Compare time zones', 'The zone matrix shows the same instant across six regions — add more from the picker.'],
-        ].map(([title, body], i) => (
-          <li class="flex items-start gap-3 rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
-            <span class="flex size-7 shrink-0 items-center justify-center rounded-full bg-indigo-500/15 font-mono text-sm font-bold text-indigo-300">
-              {i + 1}
-            </span>
-            <span>
-              <span class="block text-sm font-semibold text-zinc-100">{title}</span>
-              <span class="mt-0.5 block text-sm text-zinc-400">{body}</span>
-            </span>
-          </li>
-        ))
-      }
-    </ol>
+        ]} />
 
     <TimestampConverter defaultEpoch={tool.defaultEpoch} />
 

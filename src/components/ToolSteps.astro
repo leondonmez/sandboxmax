@@ -1,0 +1,42 @@
+---
+/**
+ * ToolSteps.astro — the three-step "how to use" strip shown on every tool page.
+ * Renders the visible <ol> AND a schema.org/HowTo JSON-LD block from the same
+ * steps array, so the structured data can never drift from the on-page text.
+ */
+interface Props {
+  toolName: string;
+  steps: string[][];
+}
+
+const { toolName, steps } = Astro.props;
+
+const howToSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'HowTo',
+  name: `How to use the ${toolName}`,
+  step: steps.map(([name, text], i) => ({
+    '@type': 'HowToStep',
+    position: i + 1,
+    name,
+    text,
+  })),
+};
+---
+
+<ol class="mb-6 grid gap-3 sm:grid-cols-3">
+  {
+    steps.map(([title, body], i) => (
+      <li class="flex items-start gap-3 rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
+        <span class="flex size-7 shrink-0 items-center justify-center rounded-full bg-indigo-500/15 font-mono text-sm font-bold text-indigo-300">
+          {i + 1}
+        </span>
+        <span>
+          <span class="block text-sm font-semibold text-zinc-100">{title}</span>
+          <span class="mt-0.5 block text-sm text-zinc-400">{body}</span>
+        </span>
+      </li>
+    ))
+  }
+</ol>
+<script type="application/ld+json" set:html={JSON.stringify(howToSchema)} />
