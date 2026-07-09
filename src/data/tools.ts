@@ -85,6 +85,20 @@ export const tools: Tool[] = [
     status: 'live',
   },
   {
+    slug: 'tools/multi-cloud-ips',
+    name: 'Cloud IP Firewall Matrix',
+    category: 'Infra',
+    description: 'AWS, GitHub & GCP IP ranges as CIDR lists, JSON, or Terraform ingress.',
+    status: 'live',
+  },
+  {
+    slug: 'tools/supabase-rls-builder',
+    name: 'Supabase RLS Builder',
+    category: 'Database',
+    description: 'Generate valid Postgres row-level-security policies from presets.',
+    status: 'live',
+  },
+  {
     slug: 'markdown/preview-github-readme-template',
     name: 'Markdown Preview',
     category: 'Text',

@@ -48,6 +48,14 @@ const pages: Record<string, OgPage> = {
     title: 'The Client-Side Sandbox',
     description: 'Free developer utilities that run 100% in your browser — no signups, no servers, no tokens.',
   },
+  'tools/multi-cloud-ips': {
+    title: 'Multi-Cloud IP Range Firewall Matrix',
+    description: 'AWS, GitHub Actions & Google Cloud IP ranges as CIDR lists, JSON arrays, or Terraform ingress blocks.',
+  },
+  'tools/supabase-rls-builder': {
+    title: 'Supabase RLS Policy Builder',
+    description: 'Production-ready Postgres CREATE POLICY statements — presets for ownership, teams, and public read.',
+  },
 };
 for (const [prefix, tools] of Object.entries(clusters)) {
   for (const tool of tools) {

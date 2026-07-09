@@ -1,0 +1,242 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import SiteHeader from '../../components/SiteHeader.astro';
+import SiteFooter from '../../components/SiteFooter.astro';
+import ToolSteps from '../../components/ToolSteps.astro';
+import snapshot from '../../data/cloudIpRanges.json';
+
+const toolTitle = 'Multi-Cloud IP Range Firewall Matrix';
+const fetchedDate = snapshot.fetchedAt.slice(0, 10);
+const totalBlocks = Object.values(snapshot.providers)
+  .flatMap((p) => Object.values(p.services))
+  .flatMap((s) => Object.values(s))
+  .reduce((n, arr) => n + arr.length, 0);
+---
+
+<Layout
+  title="AWS, GitHub & GCP IP Ranges → Firewall Rules | SandboxMax"
+  description="Turn published AWS, GitHub Actions, and Google Cloud IP ranges into plain CIDR lists, JSON arrays, or Terraform ingress blocks — instantly, in your browser."
+  toolName={toolTitle}
+>
+  <SiteHeader />
+
+  <main class="mx-auto max-w-6xl px-4 py-10 sm:px-6">
+    <nav class="mb-6 font-mono text-xs text-zinc-500">
+      <a href="/" class="transition hover:text-zinc-300">sandboxmax</a>
+      <span class="mx-1">/</span>
+      <span class="text-zinc-400">tools/multi-cloud-ips</span>
+    </nav>
+
+    <div class="mb-8 max-w-3xl">
+      <h1 class="text-3xl font-extrabold tracking-tight text-zinc-50 sm:text-4xl">{toolTitle}</h1>
+      <p class="mt-3 leading-relaxed text-zinc-400">
+        Cloud providers publish the IP ranges their services use — and your firewall wants them in a very
+        different shape. Pick a provider, service, and region below and get the matching CIDR blocks as a plain
+        list, a JSON array, or a ready-to-paste Terraform security-group ingress block. Bundled snapshot:
+        {totalBlocks.toLocaleString()} blocks across AWS (EC2, S3, AMAZON), GitHub (actions, hooks, git), and
+        Google Cloud core regions.
+      </p>
+      <p class="mt-3 inline-flex items-center gap-2 rounded-full border border-emerald-400/25 bg-emerald-400/10 px-3 py-1 font-mono text-xs text-emerald-300">
+        <span class="size-1.5 rounded-full bg-emerald-400"></span>
+        runs 100% in your browser — filtering &amp; formatting stay local
+      </p>
+    </div>
+
+    <ToolSteps
+      toolName={toolTitle}
+      steps={[
+        ['Pick the source', 'Provider, then service, then region — the dropdowns cascade from the bundled range data.'],
+        ['Choose the format', 'Plain CIDR list for firewalls, JSON array for scripts, or a Terraform ingress block for IaC.'],
+        ['Copy the rules', 'Deduplicated, IPv4/IPv6-aware output, one click to your clipboard — with the snapshot date attached.'],
+      ]}
+    />
+
+    <div id="cloud-ips" class="grid gap-5 lg:grid-cols-2">
+      <!-- Left: selection controls -->
+      <section class="flex flex-col gap-4 rounded-xl border border-zinc-800 bg-zinc-900/40 p-5">
+        {
+          [
+            ['provider', 'Provider'],
+            ['service', 'Service / block type'],
+            ['region', 'Region'],
+          ].map(([key, label]) => (
+            <div>
+              <label for={`sel-${key}`} class="mb-2 block text-sm font-semibold text-zinc-200">
+                {label}
+              </label>
+              <select
+                id={`sel-${key}`}
+                data-el={key}
+                class="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2.5 font-mono text-sm text-indigo-300 outline-none focus:border-indigo-400/60"
+              />
+            </div>
+          ))
+        }
+
+        <div>
+          <p class="mb-2 text-sm font-semibold text-zinc-200">Output format</p>
+          <div class="flex w-fit rounded-lg border border-zinc-700 p-0.5 font-mono text-xs">
+            <button type="button" data-format="cidr" class="rounded-md px-3 py-1.5 transition">CIDR list</button>
+            <button type="button" data-format="json" class="rounded-md px-3 py-1.5 transition">JSON array</button>
+            <button type="button" data-format="terraform" class="rounded-md px-3 py-1.5 transition">Terraform</button>
+          </div>
+        </div>
+
+        <div data-el="stale-warning" hidden class="rounded-md bg-amber-500/10 px-3 py-2 font-mono text-xs leading-5 text-amber-300"></div>
+
+        <p class="mt-auto text-xs leading-5 text-zinc-500">
+          Ranges are a <strong class="font-semibold text-zinc-400">point-in-time snapshot ({fetchedDate})</strong> of the
+          providers&rsquo; published lists — they shift constantly, so for production changes always regenerate from the
+          live sources:
+          <a href="https://ip-ranges.amazonaws.com/ip-ranges.json" target="_blank" rel="noopener" class="text-indigo-300 underline decoration-indigo-300/40 hover:text-indigo-200">AWS</a> ·
+          <a href="https://api.github.com/meta" target="_blank" rel="noopener" class="text-indigo-300 underline decoration-indigo-300/40 hover:text-indigo-200">GitHub</a> ·
+          <a href="https://www.gstatic.com/ipranges/cloud.json" target="_blank" rel="noopener" class="text-indigo-300 underline decoration-indigo-300/40 hover:text-indigo-200">Google Cloud</a>.
+          This page never fetches anything at runtime.
+        </p>
+      </section>
+
+      <!-- Right: output -->
+      <section class="flex flex-col gap-3 rounded-xl border border-zinc-800 bg-zinc-900/40 p-5">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <label for="ips-output" class="text-sm font-semibold text-zinc-200">Firewall rules</label>
+          <span class="flex items-center gap-3">
+            <span data-el="stats" class="font-mono text-xs text-zinc-500"></span>
+            <button
+              type="button"
+              data-el="copy"
+              class="rounded-md border border-zinc-700 px-2.5 py-1 font-mono text-xs text-zinc-400 transition hover:border-zinc-500 hover:text-zinc-100"
+            >
+              ⧉ Copy to Clipboard
+            </button>
+          </span>
+        </div>
+        <textarea
+          id="ips-output"
+          data-el="output"
+          readonly
+          spellcheck="false"
+          class="h-[28rem] w-full grow resize-y rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-3 font-mono text-xs leading-5 text-emerald-300/90 outline-none"
+        ></textarea>
+      </section>
+    </div>
+
+    <script type="application/json" id="ip-snapshot" set:html={JSON.stringify(snapshot)} />
+  </main>
+
+  <SiteFooter />
+</Layout>
+
+<script>
+  interface Snapshot {
+    fetchedAt: string;
+    providers: Record<string, { label: string; services: Record<string, Record<string, string[]>> }>;
+  }
+
+  const snapshot: Snapshot = JSON.parse(document.getElementById('ip-snapshot')!.textContent!);
+  const root = document.getElementById('cloud-ips')!;
+  const el = <T extends HTMLElement>(name: string) => root.querySelector<T>(`[data-el="${name}"]`)!;
+
+  const providerSel = el<HTMLSelectElement>('provider');
+  const serviceSel = el<HTMLSelectElement>('service');
+  const regionSel = el<HTMLSelectElement>('region');
+  const output = el<HTMLTextAreaElement>('output');
+  const statsEl = el<HTMLSpanElement>('stats');
+  const copyBtn = el<HTMLButtonElement>('copy');
+  const staleEl = el<HTMLDivElement>('stale-warning');
+  const formatBtns = [...root.querySelectorAll<HTMLButtonElement>('[data-format]')];
+
+  let format: 'cidr' | 'json' | 'terraform' = 'cidr';
+
+  const fill = (sel: HTMLSelectElement, options: [string, string][]) => {
+    sel.replaceChildren(
+      ...options.map(([value, label]) => {
+        const o = document.createElement('option');
+        o.value = value;
+        o.textContent = label;
+        return o;
+      })
+    );
+  };
+
+  function syncServices() {
+    const services = Object.keys(snapshot.providers[providerSel.value].services);
+    fill(serviceSel, services.map((s) => [s, s]));
+    syncRegions();
+  }
+
+  function syncRegions() {
+    const regions = Object.keys(snapshot.providers[providerSel.value].services[serviceSel.value]);
+    const options: [string, string][] = regions.length > 1 ? [['__all__', 'all regions'], ...regions.map((r): [string, string] => [r, r])] : regions.map((r): [string, string] => [r, r]);
+    fill(regionSel, options);
+    render();
+  }
+
+  function selectedCidrs(): string[] {
+    const service = snapshot.providers[providerSel.value].services[serviceSel.value];
+    const regions = regionSel.value === '__all__' ? Object.keys(service) : [regionSel.value];
+    return [...new Set(regions.flatMap((r) => service[r]))]; // dedupe across regions
+  }
+
+  function render() {
+    const cidrs = selectedCidrs();
+    const v4 = cidrs.filter((c) => !c.includes(':'));
+    const v6 = cidrs.filter((c) => c.includes(':'));
+    const providerLabel = snapshot.providers[providerSel.value].label;
+    const scope = `${providerLabel} ${serviceSel.value} (${regionSel.value === '__all__' ? 'all regions' : regionSel.value})`;
+
+    if (format === 'cidr') {
+      output.value = cidrs.join('\n');
+    } else if (format === 'json') {
+      output.value = JSON.stringify(cidrs, null, 2);
+    } else {
+      const list = (arr: string[], indent: string) => arr.map((c) => `${indent}"${c}",`).join('\n');
+      output.value = [
+        `# ${scope} — snapshot ${snapshot.fetchedAt.slice(0, 10)}`,
+        `# regenerate from the live published ranges before production use`,
+        `resource "aws_security_group" "cloud_ingress" {`,
+        `  name        = "allow-${providerSel.value}-${serviceSel.value.toLowerCase().replace(/[^a-z0-9]+/g, '-')}"`,
+        `  description = "Ingress from ${scope}"`,
+        ``,
+        `  ingress {`,
+        `    description      = "${scope} HTTPS"`,
+        `    from_port        = 443`,
+        `    to_port          = 443`,
+        `    protocol         = "tcp"`,
+        ...(v4.length > 0 ? [`    cidr_blocks = [`, list(v4, '      '), `    ]`] : []),
+        ...(v6.length > 0 ? [`    ipv6_cidr_blocks = [`, list(v6, '      '), `    ]`] : []),
+        `  }`,
+        `}`,
+      ].join('\n');
+    }
+    statsEl.textContent = `${cidrs.length.toLocaleString()} blocks (${v4.length.toLocaleString()} v4 · ${v6.length.toLocaleString()} v6)`;
+  }
+
+  function setFormat(next: typeof format) {
+    format = next;
+    const ACTIVE = 'bg-indigo-500/20 text-indigo-300';
+    const IDLE = 'text-zinc-500 hover:text-zinc-300';
+    formatBtns.forEach((b) => (b.className = `rounded-md px-3 py-1.5 transition ${b.dataset.format === format ? ACTIVE : IDLE}`));
+    render();
+  }
+
+  // snapshot age: warn loudly once it's older than ~6 weeks
+  const ageDays = Math.floor((Date.now() - Date.parse(snapshot.fetchedAt)) / 86400000);
+  if (ageDays > 45) {
+    staleEl.textContent = `⚠ this snapshot is ${ageDays} days old — cloud IP ranges shift weekly. Regenerate from the live sources (links below) before using these rules in production.`;
+    staleEl.hidden = false;
+  }
+
+  providerSel.addEventListener('change', syncServices);
+  serviceSel.addEventListener('change', syncRegions);
+  regionSel.addEventListener('change', render);
+  formatBtns.forEach((b) => b.addEventListener('click', () => setFormat(b.dataset.format as typeof format)));
+  copyBtn.addEventListener('click', async () => {
+    await navigator.clipboard.writeText(output.value);
+    copyBtn.textContent = '✓ copied!';
+    setTimeout(() => (copyBtn.textContent = '⧉ Copy to Clipboard'), 1200);
+  });
+
+  fill(providerSel, Object.entries(snapshot.providers).map(([key, p]): [string, string] => [key, p.label]));
+  syncServices();
+  setFormat('cidr');
+</script>

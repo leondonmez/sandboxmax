@@ -1,0 +1,267 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import SiteHeader from '../../components/SiteHeader.astro';
+import SiteFooter from '../../components/SiteFooter.astro';
+import ToolSteps from '../../components/ToolSteps.astro';
+
+const toolTitle = 'Supabase RLS Policy Builder';
+---
+
+<Layout
+  title="Supabase RLS Policy Generator — Postgres Row-Level Security | SandboxMax"
+  description="Build production-ready Postgres CREATE POLICY statements for Supabase row-level security — pick table, operation, role, and ownership presets, copy valid SQL."
+  toolName={toolTitle}
+>
+  <SiteHeader />
+
+  <main class="mx-auto max-w-6xl px-4 py-10 sm:px-6">
+    <nav class="mb-6 font-mono text-xs text-zinc-500">
+      <a href="/" class="transition hover:text-zinc-300">sandboxmax</a>
+      <span class="mx-1">/</span>
+      <span class="text-zinc-400">tools/supabase-rls-builder</span>
+    </nav>
+
+    <div class="mb-8 max-w-3xl">
+      <h1 class="text-3xl font-extrabold tracking-tight text-zinc-50 sm:text-4xl">{toolTitle}</h1>
+      <p class="mt-3 leading-relaxed text-zinc-400">
+        Row-level security is the difference between a Supabase app and an open database — and the
+        <code class="rounded bg-zinc-800 px-1.5 py-0.5 font-mono text-[0.9em] text-rose-300">CREATE POLICY</code> syntax
+        is easy to get subtly wrong. Pick your table, operation, and role, choose an ownership preset (or write custom
+        clauses), and copy syntax-valid PostgreSQL. The builder enforces the real validity rules: INSERT policies take
+        only WITH CHECK, SELECT and DELETE take only USING.
+      </p>
+      <p class="mt-3 inline-flex items-center gap-2 rounded-full border border-emerald-400/25 bg-emerald-400/10 px-3 py-1 font-mono text-xs text-emerald-300">
+        <span class="size-1.5 rounded-full bg-emerald-400"></span>
+        runs 100% in your browser — schema details never leave the tab
+      </p>
+    </div>
+
+    <ToolSteps
+      toolName={toolTitle}
+      steps={[
+        ['Describe the access', 'Table name, operation (ALL / SELECT / INSERT / UPDATE / DELETE), and the Supabase role it applies to.'],
+        ['Pick a preset or go custom', '"User owns record", read-everyone/update-owner, or team matching — or type your own USING and WITH CHECK clauses.'],
+        ['Copy valid SQL', 'The policy updates as you click, with the clause rules Postgres actually enforces baked in.'],
+      ]}
+    />
+
+    <div id="rls-builder" class="grid gap-5 lg:grid-cols-2">
+      <!-- Left: inputs -->
+      <section class="flex flex-col gap-4 rounded-xl border border-zinc-800 bg-zinc-900/40 p-5">
+        <div>
+          <label for="rls-table" class="mb-2 block text-sm font-semibold text-zinc-200">Table name</label>
+          <input
+            id="rls-table"
+            data-el="table"
+            type="text"
+            value="profiles"
+            spellcheck="false"
+            autocomplete="off"
+            class="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2.5 font-mono text-sm text-indigo-300 outline-none focus:border-indigo-400/60"
+          />
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label for="rls-op" class="mb-2 block text-sm font-semibold text-zinc-200">Operation</label>
+            <select
+              id="rls-op"
+              data-el="op"
+              class="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2.5 font-mono text-sm text-indigo-300 outline-none focus:border-indigo-400/60 disabled:opacity-40"
+            >
+              {['ALL', 'SELECT', 'INSERT', 'UPDATE', 'DELETE'].map((op) => <option value={op}>{op}</option>)}
+            </select>
+          </div>
+          <div>
+            <label for="rls-role" class="mb-2 block text-sm font-semibold text-zinc-200">Role / target</label>
+            <select
+              id="rls-role"
+              data-el="role"
+              class="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2.5 font-mono text-sm text-indigo-300 outline-none focus:border-indigo-400/60"
+            >
+              {['authenticated', 'anon', 'public', 'service_role'].map((r) => <option value={r}>{r}</option>)}
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label for="rls-preset" class="mb-2 block text-sm font-semibold text-zinc-200">Rule template preset</label>
+          <select
+            id="rls-preset"
+            data-el="preset"
+            class="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2.5 font-mono text-sm text-indigo-300 outline-none focus:border-indigo-400/60"
+          >
+            <option value="owner">User owns record</option>
+            <option value="read-all-update-owner">Read for everyone, update only if owner</option>
+            <option value="team">Team / organization matching</option>
+            <option value="none">No preset (custom clauses)</option>
+          </select>
+          <p data-el="preset-note" hidden class="mt-2 rounded-md bg-indigo-500/10 px-3 py-2 font-mono text-xs leading-5 text-indigo-300"></p>
+        </div>
+
+        <div data-el="custom-wrap" class="flex flex-col gap-3">
+          <div>
+            <label for="rls-using" class="mb-2 block text-sm font-semibold text-zinc-200">
+              Custom <code class="font-mono text-xs text-rose-300">USING (…)</code> override
+            </label>
+            <input
+              id="rls-using"
+              data-el="using"
+              type="text"
+              placeholder="e.g. auth.uid() = user_id"
+              spellcheck="false"
+              autocomplete="off"
+              class="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2.5 font-mono text-xs text-zinc-200 outline-none focus:border-indigo-400/60 disabled:opacity-40"
+            />
+          </div>
+          <div>
+            <label for="rls-check" class="mb-2 block text-sm font-semibold text-zinc-200">
+              Custom <code class="font-mono text-xs text-rose-300">WITH CHECK (…)</code> override
+            </label>
+            <input
+              id="rls-check"
+              data-el="check"
+              type="text"
+              placeholder="e.g. auth.uid() = user_id"
+              spellcheck="false"
+              autocomplete="off"
+              class="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2.5 font-mono text-xs text-zinc-200 outline-none focus:border-indigo-400/60 disabled:opacity-40"
+            />
+          </div>
+        </div>
+
+        <p data-el="role-warning" hidden class="rounded-md bg-amber-500/10 px-3 py-2 font-mono text-xs leading-5 text-amber-300"></p>
+
+        <p class="mt-auto text-xs text-zinc-500">
+          Clause validity is enforced automatically: <span class="font-mono">INSERT</span> policies emit only
+          <span class="font-mono">WITH CHECK</span>; <span class="font-mono">SELECT</span> and
+          <span class="font-mono">DELETE</span> emit only <span class="font-mono">USING</span> — exactly what
+          Postgres accepts.
+        </p>
+      </section>
+
+      <!-- Right: SQL output -->
+      <section class="flex flex-col gap-3 rounded-xl border border-zinc-800 bg-zinc-900/40 p-5">
+        <div class="flex items-center justify-between">
+          <h2 class="text-sm font-semibold text-zinc-200">Generated PostgreSQL</h2>
+          <button
+            type="button"
+            data-el="copy"
+            class="rounded-md border border-zinc-700 px-2.5 py-1 font-mono text-xs text-zinc-400 transition hover:border-zinc-500 hover:text-zinc-100"
+          >
+            ⧉ Copy to Clipboard
+          </button>
+        </div>
+        <pre
+          data-el="output"
+          class="h-[28rem] grow overflow-auto rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-3 font-mono text-xs leading-6 whitespace-pre-wrap text-emerald-300/90"></pre>
+        <p class="text-xs text-zinc-500">
+          Run it in the Supabase SQL editor. The <span class="font-mono">ALTER TABLE … ENABLE ROW LEVEL SECURITY</span>
+          line is included — without it, policies exist but nothing is enforced.
+        </p>
+      </section>
+    </div>
+  </main>
+
+  <SiteFooter />
+</Layout>
+
+<script>
+  const root = document.getElementById('rls-builder')!;
+  const el = <T extends HTMLElement>(name: string) => root.querySelector<T>(`[data-el="${name}"]`)!;
+
+  const tableInput = el<HTMLInputElement>('table');
+  const opSel = el<HTMLSelectElement>('op');
+  const roleSel = el<HTMLSelectElement>('role');
+  const presetSel = el<HTMLSelectElement>('preset');
+  const presetNote = el<HTMLParagraphElement>('preset-note');
+  const usingInput = el<HTMLInputElement>('using');
+  const checkInput = el<HTMLInputElement>('check');
+  const roleWarning = el<HTMLParagraphElement>('role-warning');
+  const output = el<HTMLPreElement>('output');
+  const copyBtn = el<HTMLButtonElement>('copy');
+
+  const OWNER = 'auth.uid() = user_id';
+  const TEAM = 'auth.uid() IN (SELECT user_id FROM team_members WHERE team_id = organization_id)';
+
+  const PRESET_CLAUSES: Record<string, { using: string; check: string; label: string }> = {
+    owner: { using: OWNER, check: OWNER, label: 'user owns record' },
+    team: { using: TEAM, check: TEAM, label: 'team membership' },
+    none: { using: 'true', check: 'true', label: 'custom rule' },
+  };
+
+  // Postgres clause validity per operation
+  const takesUsing = (op: string) => op !== 'INSERT';
+  const takesCheck = (op: string) => op === 'INSERT' || op === 'UPDATE' || op === 'ALL';
+
+  /** quote the identifier only when it isn't a plain lowercase identifier */
+  const ident = (raw: string) => {
+    const t = raw.trim() || 'profiles';
+    return /^[a-z_][a-z0-9_]*$/.test(t) ? t : `"${t.replaceAll('"', '""')}"`;
+  };
+
+  function policyStatement(table: string, op: string, role: string, usingClause: string, checkClause: string, why: string): string {
+    const lines = [
+      `CREATE POLICY "Allow ${op} for ${role} based on ${why}"`,
+      `ON public.${table}`,
+      `FOR ${op}`,
+      `TO ${role}`,
+    ];
+    if (takesUsing(op)) lines.push(`USING (${usingClause})`);
+    if (takesCheck(op)) lines.push(`WITH CHECK (${checkClause})`);
+    return lines.join('\n') + ';';
+  }
+
+  function render() {
+    const preset = presetSel.value;
+    const multiPolicy = preset === 'read-all-update-owner';
+
+    opSel.disabled = multiPolicy;
+    presetNote.hidden = !multiPolicy;
+    if (multiPolicy) {
+      presetNote.textContent = 'this preset generates two policies (SELECT for everyone + UPDATE for owners), so the operation selector is ignored.';
+    }
+
+    const table = ident(tableInput.value);
+    const role = roleSel.value;
+    const op = opSel.value;
+
+    roleWarning.hidden = role !== 'service_role';
+    if (role === 'service_role') {
+      roleWarning.textContent = '⚠ service_role bypasses RLS entirely in Supabase (BYPASSRLS) — a policy targeting it usually has no effect. You probably want authenticated or anon.';
+    }
+
+    const header = `ALTER TABLE public.${table} ENABLE ROW LEVEL SECURITY;`;
+
+    if (multiPolicy) {
+      output.textContent = [
+        header,
+        '',
+        policyStatement(table, 'SELECT', role, 'true', '', 'public read access'),
+        '',
+        policyStatement(table, 'UPDATE', role, OWNER, OWNER, 'user owns record'),
+      ].join('\n');
+      return;
+    }
+
+    const base = PRESET_CLAUSES[preset];
+    const usingClause = usingInput.value.trim() || base.using;
+    const checkClause = checkInput.value.trim() || base.check;
+    const why = usingInput.value.trim() || checkInput.value.trim() ? 'custom rule' : base.label;
+
+    usingInput.disabled = !takesUsing(op);
+    checkInput.disabled = !takesCheck(op);
+
+    output.textContent = [header, '', policyStatement(table, op, role, usingClause, checkClause, why)].join('\n');
+  }
+
+  [tableInput, usingInput, checkInput].forEach((i) => i.addEventListener('input', render));
+  [opSel, roleSel, presetSel].forEach((s) => s.addEventListener('change', render));
+  copyBtn.addEventListener('click', async () => {
+    await navigator.clipboard.writeText(output.textContent ?? '');
+    copyBtn.textContent = '✓ copied!';
+    setTimeout(() => (copyBtn.textContent = '⧉ Copy to Clipboard'), 1200);
+  });
+
+  render();
+</script>
