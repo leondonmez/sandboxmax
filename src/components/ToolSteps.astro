@@ -11,9 +11,13 @@ interface Props {
 
 const { toolName, steps } = Astro.props;
 
+const pageUrl = new URL(Astro.url.pathname, Astro.site).href;
+
 const howToSchema = {
   '@context': 'https://schema.org',
   '@type': 'HowTo',
+  '@id': `${pageUrl}#howto`,
+  about: { '@id': `${pageUrl}#software` }, // ties into the page's unified graph
   name: `How to use the ${toolName}`,
   step: steps.map(([name, text], i) => ({
     '@type': 'HowToStep',

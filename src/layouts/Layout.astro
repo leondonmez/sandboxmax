@@ -19,21 +19,50 @@ const canonicalUrl = new URL(Astro.url.pathname, Astro.site).href;
 const ogSlug = Astro.url.pathname.replace(/^\/|\/$/g, '');
 const ogImage = new URL(`/open-graph/${ogSlug === '' || ogSlug === '404' ? 'site' : ogSlug}.png`, Astro.site).href;
 
+// AEO: the privacy question every paste-sensitive-data tool user asks.
+// Single source of truth — rendered visibly on the page AND embedded in the
+// FAQPage schema below, so structured data can never drift from on-page text.
+const faq = toolName
+  ? {
+      question: `Is it safe to paste sensitive data into the ${toolName}?`,
+      answer: `Yes. The ${toolName} runs 100% client-side inside your browser thread — nothing you paste is uploaded, logged, or transmitted. SandboxMax is a static site with no backend server, no cookies, and no trackers: open your browser's network panel while you work and you'll see zero requests leave the tab.`,
+    }
+  : null;
+
+// one coherent JSON-LD graph per tool page: entities carry @ids and reference
+// each other instead of shipping as disjoint schema blocks
 const schema = toolName
   ? {
       '@context': 'https://schema.org',
-      '@type': 'SoftwareApplication',
-      name: toolName,
-      description,
-      url: new URL(Astro.url.pathname, Astro.site).href,
-      operatingSystem: 'All',
-      applicationCategory: 'DeveloperApplication',
-      browserRequirements: 'Requires JavaScript. Runs 100% client-side inside the browser thread.',
-      offers: {
-        '@type': 'Offer',
-        price: '0',
-        priceCurrency: 'USD',
-      },
+      '@graph': [
+        {
+          '@type': 'SoftwareApplication',
+          '@id': `${canonicalUrl}#software`,
+          name: toolName,
+          description,
+          url: canonicalUrl,
+          operatingSystem: 'All',
+          applicationCategory: 'DeveloperApplication',
+          browserRequirements: 'Requires JavaScript. Runs 100% client-side inside the browser thread.',
+          offers: {
+            '@type': 'Offer',
+            price: '0',
+            priceCurrency: 'USD',
+          },
+        },
+        {
+          '@type': 'FAQPage',
+          '@id': `${canonicalUrl}#faq`,
+          about: { '@id': `${canonicalUrl}#software` },
+          mainEntity: [
+            {
+              '@type': 'Question',
+              name: faq!.question,
+              acceptedAnswer: { '@type': 'Answer', text: faq!.answer },
+            },
+          ],
+        },
+      ],
     }
   : {
       '@context': 'https://schema.org',
@@ -42,27 +71,6 @@ const schema = toolName
       description,
       url: Astro.site?.href,
     };
-
-// AEO: a static privacy Q&A on every tool page — the question every user of a
-// paste-sensitive-data tool actually asks, answered in crawlable structured data
-const faqSchema = toolName
-  ? {
-      '@context': 'https://schema.org',
-      '@type': 'FAQPage',
-      mainEntity: [
-        {
-          '@type': 'Question',
-          name: `Is it safe to paste sensitive data into the ${toolName}?`,
-          acceptedAnswer: {
-            '@type': 'Answer',
-            text: `Yes. The ${toolName} runs 100% client-side inside your browser thread — nothing you paste is uploaded, logged, or transmitted. SandboxMax is a static site with no backend server, no cookies, and no trackers: open your browser's network panel while you work and you'll see zero requests leave the tab.`,
-          },
-        },
-      ],
-    }
-  : null;
-
-const schemas = [schema, faqSchema].filter(Boolean);
 ---
 
 <html lang="en" class="scheme-dark">
@@ -88,10 +96,18 @@ const schemas = [schema, faqSchema].filter(Boolean);
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={ogImage} />
-    {schemas.map((s) => <script type="application/ld+json" set:html={JSON.stringify(s)} />)}
+    <script type="application/ld+json" set:html={JSON.stringify(schema)} />
   </head>
   <body class="flex min-h-screen flex-col bg-zinc-950 text-zinc-300 antialiased selection:bg-emerald-400/30">
     <slot />
+    {
+      faq && (
+        <section aria-label="Privacy FAQ" class="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6">
+          <h2 class="mb-2 text-sm font-semibold text-zinc-200">{faq.question}</h2>
+          <p class="max-w-3xl text-sm leading-relaxed text-zinc-400">{faq.answer}</p>
+        </section>
+      )
+    }
     <NetworkFooter />
   </body>
 </html>

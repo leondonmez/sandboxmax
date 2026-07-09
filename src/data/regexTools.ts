@@ -49,7 +49,7 @@ export const regexTools: RegexTool[] = [
     slug: 'extract-emails',
     metaTitle: 'Free Online Email Regex Extractor & Tester | SandboxMax',
     metaDescription:
-      'Extract and validate email addresses from any text with a proven regex pattern. Live highlighting, fully editable, runs 100% in your browser — paste sensitive data safely.',
+      'Extract and validate email addresses from any text with a proven regex pattern. Live highlighting, fully editable, 100% in your browser — safe for sensitive data.',
     toolTitle: 'Email Address Regex Extractor',
     explanation:
       'Matches standard email addresses — a local part of letters, digits, and common symbols, an @ sign, and a dotted domain with a 2+ letter TLD. It deliberately skips malformed strings like user@host (no TLD) or double @@ addresses.',
@@ -82,7 +82,7 @@ export const regexTools: RegexTool[] = [
     slug: 'password-validation',
     metaTitle: 'Password Validation Regex Tester (Uppercase, Lowercase, Number, 8+ Chars) | SandboxMax',
     metaDescription:
-      'Test the classic strong-password regex: at least one uppercase, one lowercase, one number, minimum 8 characters. Live per-line matching in your browser — nothing is uploaded.',
+      'Test the classic strong-password regex: one uppercase, one lowercase, one number, 8+ characters. Live per-line matching in your browser — nothing is uploaded.',
     toolTitle: 'Strong Password Validation Regex',
     explanation:
       'Uses three lookaheads to require at least one lowercase letter, one uppercase letter, and one digit, then demands 8+ total characters. With the m flag enabled, each line below is validated independently — matching lines pass the policy.',
