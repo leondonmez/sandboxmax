@@ -5,6 +5,15 @@ export interface MarkdownTool {
   toolTitle: string;
   explanation: string;
   defaultMarkdown: string;
+  /** optional per-page SEO copy block targeting a specific striking-distance query */
+  seo?: {
+    lead: string;
+    h2: string;
+    intro: string;
+    code: string;
+    h3: string;
+    h3body: string;
+  };
 }
 
 export const markdownTools: MarkdownTool[] = [
@@ -16,6 +25,17 @@ export const markdownTools: MarkdownTool[] = [
     toolTitle: 'GitHub README Live Preview',
     explanation:
       'Pre-loaded with a complete README skeleton — title, feature bullets, fenced install commands, usage code, and a contributing checklist — rendered exactly the way GitHub\'s dark theme will show it. Edit on the left, watch the right pane keep up on every keystroke; nothing you write leaves this tab.',
+    seo: {
+      lead:
+        'Paste the contents of any readme.md file — including one from a sandbox path like sandbox:/readme.md — and see it rendered live as GitHub-styled Markdown.',
+      h2: 'How to Preview a sandbox:/readme.md File',
+      intro:
+        'A browser cannot open an arbitrary readme.md file path or read a sandbox directory on its own — that is a privacy boundary, not a limit of this Markdown file preview. So the workflow is simple: copy the raw text out of the file and paste it into the editor for an instant rendered preview.',
+      code: 'sandbox:/readme.md',
+      h3: 'Rendering Local and Sandbox readme.md Paths',
+      h3body:
+        'Whether your file lives at a local path like ./README.md or a virtual sandbox path like sandbox:/readme.md, the steps are identical: select all, copy, and paste the Markdown below. The preview re-renders on every keystroke, so you can tweak the source and re-check the output without saving a file or leaving the tab.',
+    },
     defaultMarkdown: [
       '# SandboxKit',
       '',
